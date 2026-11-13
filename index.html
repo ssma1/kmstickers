@@ -123,8 +123,8 @@
             right: 4px;
             background: rgba(0,0,0,0.6);
             color: white;
-            font-size: 10px;
-            padding: 2px 5px;
+            font-size: 9px;
+            padding: 2px 4px;
             border-radius: 4px;
         }
 
@@ -195,7 +195,6 @@
 
         input[type="range"] { flex: 1; margin-left: 15px; accent-color: var(--text-main); }
 
-        /* Вкладки выбора шрифтов */
         .fonts-selector-container {
             display: flex;
             gap: 8px;
@@ -299,7 +298,7 @@
 <div class="app-container">
     <header>
         <div class="logo-area">
-            <i class="fa-solid.fa-hammer"></i> KMStickers
+            <i class="fa-solid fa-hammer-and-sickle"></i> KMStickers
         </div>
         <div style="font-size: 13px; color: var(--text-secondary);" id="header-status">Загрузка...</div>
     </header>
@@ -308,7 +307,7 @@
         <!-- СТРАНИЦА 1: ГЛАВНАЯ -->
         <div id="page-home" class="page">
             <div style="margin-bottom: 16px;">
-                <input type="text" id="search-input" placeholder="Поиск стикеров по названию...">
+                <input type="text" id="search-input" placeholder="Поиск стикеров по названию..." oninput="filterSearch(this.value)">
             </div>
 
             <div style="display: flex; gap: 8px; margin-bottom: 16px; overflow-x: auto; padding-bottom: 4px;" id="category-filters">
@@ -342,11 +341,8 @@
         <div id="page-editor" class="page hidden">
             <div style="display: flex; gap: 8px; overflow-x: auto; padding-bottom: 10px; margin-bottom: 12px;" id="editor-tabs"></div>
 
-            <!-- Вкладки выбора шрифтов -->
             <div class="section-title" style="font-size: 14px; margin-bottom: 6px;">Выберите шрифт</div>
-            <div class="fonts-selector-container" id="fonts-tabs-container">
-                <!-- Динамически заполняются встроенные шрифты -->
-            </div>
+            <div class="fonts-selector-container" id="fonts-tabs-container"></div>
 
             <div style="background: var(--surface-card); border-radius: 8px; width: 100%; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden; margin-bottom: 16px; border: 1px solid var(--border-color);" id="editor-preview-container">
                 <div id="editor-lottie-target" style="width: 100%; height: 100%;"></div>
@@ -451,6 +447,7 @@
     let availableStickers = [];
     let categories = new Set();
     let currentCategory = 'all';
+    let searchQuery = '';
     
     let selectedStickersIDs = [];
     let stickerConfigs = {};
@@ -464,24 +461,23 @@
         shapeColor: "#000000",
         strokeColor: "#ffffff",
         strokeSize: 9,
-        fontKey: 'default'
+        fontKey: 'Impact'
     };
     
     let activeEditorId = null;
     let currentAnimInstance = null;
 
-    // Библиотека встроенных шрифтов (пути к публичным TTF/OTF шрифтам из открытых источников)
     const builtinFonts = {
-        'Impact': 'https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.66/fonts/Roboto-Bold.ttf', // надежный аналог жирного без засечек
+        'Impact': 'https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.66/fonts/Roboto-Bold.ttf',
         'Roboto': 'https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.66/fonts/Roboto-Regular.ttf',
-        'Roboto Medium': 'https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.66/fonts/Roboto-Medium.ttf',
+        'Medium': 'https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.66/fonts/Roboto-Medium.ttf',
         'Courier': 'https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.66/fonts/Courier.ttf',
-        'Courier Bold': 'https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.66/fonts/Courier-Bold.ttf'
+        'Bold': 'https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.66/fonts/Courier-Bold.ttf'
     };
 
     let loadedFontsCache = {};
     let activeFontKey = 'Impact';
-    let activeCustomFontObj = null; // если пользователь загрузил свой файл
+    let activeCustomFontObj = null;
 
     window.addEventListener('DOMContentLoaded', async () => {
         loadFromLocalStorage();
@@ -493,24 +489,21 @@
     });
 
     async function preloadDefaultFonts() {
-        // Загружаем первый шрифт по умолчанию при старте
         try {
-            let firstKey = Object.keys(builtinFonts)[0];
+            let firstKey = 'Impact';
             activeFontKey = firstKey;
             let res = await fetch(builtinFonts[firstKey]);
             let buf = await res.arrayBuffer();
             loadedFontsCache[firstKey] = opentype.parse(buf);
-        } catch(e) {
-            console.error("Не удалось предзагрузить шрифт", e);
-        }
+        } catch(e) {}
         renderFontTabs();
     }
 
     function renderFontTabs() {
         let container = document.getElementById('fonts-tabs-container');
+        if (!container) return;
         container.innerHTML = '';
         
-        // Встроенные шрифты
         Object.keys(builtinFonts).forEach(fKey => {
             let isActive = (activeFontKey === fKey && !activeCustomFontObj);
             container.innerHTML += `
@@ -518,7 +511,6 @@
             `;
         });
 
-        // Если загружен кастомный пользовательский шрифт
         if (activeCustomFontObj) {
             container.innerHTML += `
                 <div class="font-tab active" onclick="selectCustomFontTab()">Свой шрифт</div>
@@ -535,7 +527,7 @@
                 let buf = await res.arrayBuffer();
                 loadedFontsCache[fKey] = opentype.parse(buf);
             } catch(e) {
-                alert('Не удалось загрузить выбранный шрифт.');
+                alert('Не удалось загрузить шрифт.');
                 return;
             }
         }
@@ -544,21 +536,32 @@
     }
 
     async function scanStickersFolder() {
-        const demoStickers = [
-            { id: "watch_1", name: "watch_1", category: "watch", url: "stickers/watch_1.json" },
-            { id: "bag_1", name: "bag_1", category: "bags", url: "stickers/bag_1.json" },
-            { id: "pepe_1", name: "pepe_1", category: "memes", url: "stickers/pepe_1.json" },
-            { id: "poo_1", name: "poo_1", category: "memes", url: "stickers/poo_1.json" },
+        // Список твоих реальных файлов из папки stickers
+        const fileNames = [
+            "characters-001.tgs", "characters-002.tgs", "characters-003.tgs", 
+            "characters-004.tgs", "characters-005.tgs", "characters-006.tgs",
+            "characters-007.tgs", "characters-008.tgs", "characters-009.tgs",
+            "characters-010.tgs", "characters-011.tgs", "characters-012.tgs",
+            "characters-013.tgs", "characters-014.tgs"
         ];
+
+        availableStickers = fileNames.map(filename => {
+            let category = filename.split('-')[0] || 'pack';
+            let name = filename.replace('.tgs', '');
+            return {
+                id: name,
+                name: name,
+                category: category,
+                url: `stickers/${filename}`
+            };
+        });
 
         let savedCustom = localStorage.getItem('km_custom_stickers');
         if (savedCustom) {
             try {
                 let parsed = JSON.parse(savedCustom);
-                availableStickers = [...demoStickers, ...parsed];
-            } catch(e) { availableStickers = demoStickers; }
-        } else {
-            availableStickers = demoStickers;
+                availableStickers = [...availableStickers, ...parsed];
+            } catch(e) {}
         }
 
         availableStickers.forEach(s => categories.add(s.category));
@@ -566,6 +569,7 @@
 
     function renderCategories() {
         const container = document.getElementById('category-filters');
+        if (!container) return;
         container.innerHTML = `<button class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px; width: auto;" onclick="filterCategory('all')">Все</button>`;
         categories.forEach(cat => {
             container.innerHTML += `<button class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px; width: auto;" onclick="filterCategory('${cat}')">${cat}</button>`;
@@ -577,15 +581,27 @@
         renderStickersGrid();
     }
 
+    function filterSearch(query) {
+        searchQuery = query.toLowerCase().trim();
+        renderStickersGrid();
+    }
+
     function renderStickersGrid() {
         const grid = document.getElementById('stickers-grid');
+        if (!grid) return;
         grid.innerHTML = '';
         
-        let filtered = availableStickers.filter(s => currentCategory === 'all' || s.category === currentCategory);
-        document.getElementById('total-stickers-count').innerText = `${filtered.length} шт.`;
+        let filtered = availableStickers.filter(s => {
+            let matchesCat = (currentCategory === 'all' || s.category === currentCategory);
+            let matchesSearch = s.name.toLowerCase().includes(searchQuery);
+            return matchesCat && matchesSearch;
+        });
+
+        let counter = document.getElementById('total-stickers-count');
+        if (counter) counter.innerText = `${filtered.length} шт.`;
 
         if (filtered.length === 0) {
-            grid.innerHTML = `<div style="grid-column: span 3; text-align:center; color:var(--text-secondary); padding: 30px 0; font-size:13px;">Нет стикеров в этой категории. Создайте папку stickers в репозитории GitHub.</div>`;
+            grid.innerHTML = `<div style="grid-column: span 3; text-align:center; color:var(--text-secondary); padding: 30px 0; font-size:13px;">Стикеры не найдены. Проверьте папку stickers в репозитории.</div>`;
             return;
         }
 
@@ -595,7 +611,7 @@
                 <div class="sticker-card ${isSelected ? 'selected' : ''}" onclick="toggleStickerSelection('${s.id}')">
                     <div class="badge">${s.category}</div>
                     <div class="preview-box" id="thumb-${s.id}"><i class="fa-solid fa-image" style="color:var(--text-secondary)"></i></div>
-                    <div style="font-size: 10px; margin-top: 4px; color: var(--text-secondary); text-overflow: ellipsis; overflow: hidden; width: 90%; text-align: center;">${s.name}</div>
+                    <div style="font-size: 9px; margin-top: 4px; color: var(--text-secondary); text-overflow: ellipsis; overflow: hidden; width: 90%; text-align: center;">${s.name}</div>
                 </div>
             `;
             loadThumbnail(s);
@@ -604,12 +620,22 @@
         renderBottomActionPanel();
     }
 
+    async function fetchStickerJson(url) {
+        let res = await fetch(url);
+        if (!res.ok) throw new Error("File not found");
+        let buffer = await res.arrayBuffer();
+        try {
+            let decompressed = pako.inflate(new Uint8Array(buffer), { to: 'string' });
+            return JSON.parse(decompressed);
+        } catch(err) {
+            let text = new TextDecoder().decode(buffer);
+            return JSON.parse(text);
+        }
+    }
+
     async function loadThumbnail(sticker) {
         try {
-            let res = await fetch(sticker.url);
-            if (!res.ok) return;
-            let textData = await res.text();
-            let json = JSON.parse(textData);
+            let json = await fetchStickerJson(sticker.url);
             let container = document.getElementById(`thumb-${sticker.id}`);
             if (container) {
                 container.innerHTML = '';
@@ -639,6 +665,7 @@
 
     function renderBottomActionPanel() {
         let container = document.getElementById('bottom-bar-container');
+        if (!container) return;
         if (selectedStickersIDs.length > 0) {
             container.innerHTML = `
                 <div class="bottom-action-panel">
@@ -684,6 +711,7 @@
 
     function renderEditorTabs() {
         let container = document.getElementById('editor-tabs');
+        if (!container) return;
         container.innerHTML = '';
         selectedStickersIDs.forEach((id, idx) => {
             let st = availableStickers.find(s => s.id === id);
@@ -773,9 +801,7 @@
         if (currentAnimInstance) currentAnimInstance.destroy();
 
         try {
-            let res = await fetch(st.url);
-            let json = await res.json();
-            
+            let json = await fetchStickerJson(st.url);
             await applyCustomizationToJSON(json, stickerConfigs[activeEditorId] || globalConfig);
 
             currentAnimInstance = lottie.loadAnimation({
@@ -966,8 +992,7 @@
             let st = availableStickers.find(s => s.id === id);
             if (!st) continue;
             try {
-                let res = await fetch(st.url);
-                let json = await res.json();
+                let json = await fetchStickerJson(st.url);
                 let cfg = stickerConfigs[id] || globalConfig;
                 await applyCustomizationToJSON(json, cfg);
 
@@ -997,6 +1022,7 @@
 
     function renderPacksPage() {
         let container = document.getElementById('packs-list');
+        if (!container) return;
         let packs = JSON.parse(localStorage.getItem('km_packs') || '[]');
         if (packs.length === 0) {
             container.innerHTML = `<div style="color: var(--text-secondary); text-align: center; padding: 40px 0; font-size: 13px;">Вы еще не скачали ни одного пака.</div>`;
@@ -1033,7 +1059,7 @@
 
     function updateHeaderStatus() {
         let el = document.getElementById('header-status');
-        el.innerText = selectedStickersIDs.length > 0 ? `Выбрано: ${selectedStickersIDs.length}` : 'Готов к работе';
+        if (el) el.innerText = selectedStickersIDs.length > 0 ? `Выбрано: ${selectedStickersIDs.length}` : 'Готов к работе';
     }
 </script>
 </body>
