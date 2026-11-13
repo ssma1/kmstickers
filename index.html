@@ -1,0 +1,1040 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>KMStickers</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/opentype.js/1.3.4/opentype.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --bg-color: #121212;
+            --surface-color: #1e1e1e;
+            --surface-card: #282828;
+            --border-color: #383838;
+            --text-main: #ffffff;
+            --text-secondary: #a0a0a0;
+            --accent: #ffffff;
+            --accent-bg: #333333;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; -webkit-tap-highlight-color: transparent; }
+        
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            padding-bottom: 70px;
+        }
+
+        .app-container {
+            width: 100%;
+            max-width: 480px;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            background-color: var(--bg-color);
+            position: relative;
+            border-left: 1px solid var(--border-color);
+            border-right: 1px solid var(--border-color);
+        }
+
+        header {
+            padding: 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border-color);
+            background: var(--surface-color);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .logo-area {
+            font-weight: 800;
+            font-size: 18px;
+            letter-spacing: 0.5px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .content {
+            flex: 1;
+            padding: 16px;
+            overflow-y: auto;
+        }
+
+        .section-title {
+            font-size: 16px;
+            font-weight: 700;
+            margin-bottom: 12px;
+            color: var(--text-main);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .stickers-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .sticker-card {
+            background: var(--surface-card);
+            border: 2px solid var(--border-color);
+            border-radius: 8px;
+            aspect-ratio: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+            transition: border-color 0.2s;
+        }
+
+        .sticker-card.selected {
+            border-color: var(--text-main);
+            background: var(--surface-color);
+        }
+
+        .sticker-card .preview-box {
+            width: 80%;
+            height: 80%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .sticker-card .badge {
+            position: absolute;
+            top: 4px;
+            right: 4px;
+            background: rgba(0,0,0,0.6);
+            color: white;
+            font-size: 10px;
+            padding: 2px 5px;
+            border-radius: 4px;
+        }
+
+        .btn {
+            background: var(--text-main);
+            color: var(--bg-color);
+            border: none;
+            padding: 12px 16px;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            width: 100%;
+            text-align: center;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: opacity 0.2s;
+        }
+        .btn:hover { opacity: 0.9; }
+        .btn-secondary {
+            background: var(--surface-card);
+            color: var(--text-main);
+            border: 1px solid var(--border-color);
+        }
+
+        input[type="text"], select {
+            width: 100%;
+            background: var(--surface-card);
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            padding: 12px;
+            border-radius: 6px;
+            font-size: 14px;
+            outline: none;
+            margin-bottom: 12px;
+        }
+
+        .control-group {
+            background: var(--surface-color);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 14px;
+            margin-bottom: 12px;
+        }
+
+        .control-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+        .control-row:last-child { margin-bottom: 0; }
+
+        input[type="color"] {
+            appearance: none;
+            border: none;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            cursor: pointer;
+            background: none;
+        }
+        input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+        input[type="color"]::-webkit-color-swatch { border: 1px solid var(--border-color); border-radius: 50%; }
+
+        input[type="range"] { flex: 1; margin-left: 15px; accent-color: var(--text-main); }
+
+        /* Вкладки выбора шрифтов */
+        .fonts-selector-container {
+            display: flex;
+            gap: 8px;
+            overflow-x: auto;
+            padding-bottom: 8px;
+            margin-bottom: 12px;
+        }
+        .font-tab {
+            background: var(--surface-card);
+            border: 1px solid var(--border-color);
+            color: var(--text-secondary);
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: all 0.2s;
+        }
+        .font-tab.active {
+            background: var(--text-main);
+            color: var(--bg-color);
+            border-color: var(--text-main);
+            font-weight: 600;
+        }
+
+        .status-bar {
+            position: fixed;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 100%;
+            max-width: 480px;
+            height: 60px;
+            background: var(--surface-color);
+            border-top: 1px solid var(--border-color);
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            z-index: 1000;
+        }
+
+        .nav-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-secondary);
+            font-size: 11px;
+            cursor: pointer;
+            border: none;
+            background: none;
+            gap: 4px;
+            transition: color 0.2s;
+        }
+        .nav-item i { font-size: 18px; }
+        .nav-item.active { color: var(--text-main); }
+
+        .bottom-action-panel {
+            position: sticky;
+            bottom: 68px;
+            background: var(--surface-color);
+            border: 1px solid var(--border-color);
+            padding: 12px 16px;
+            border-radius: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 10px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+        }
+
+        .communist-quote {
+            margin-top: 30px;
+            padding: 16px;
+            background: var(--surface-color);
+            border-left: 3px solid var(--text-main);
+            font-size: 12px;
+            color: var(--text-secondary);
+            line-height: 1.5;
+            text-align: center;
+        }
+        .communist-quote i {
+            display: block;
+            font-size: 20px;
+            margin-bottom: 6px;
+            color: var(--text-main);
+        }
+
+        .hidden { display: none !important; }
+        
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="app-container">
+    <header>
+        <div class="logo-area">
+            <i class="fa-solid.fa-hammer"></i> KMStickers
+        </div>
+        <div style="font-size: 13px; color: var(--text-secondary);" id="header-status">Загрузка...</div>
+    </header>
+
+    <div class="content" id="main-content">
+        <!-- СТРАНИЦА 1: ГЛАВНАЯ -->
+        <div id="page-home" class="page">
+            <div style="margin-bottom: 16px;">
+                <input type="text" id="search-input" placeholder="Поиск стикеров по названию...">
+            </div>
+
+            <div style="display: flex; gap: 8px; margin-bottom: 16px; overflow-x: auto; padding-bottom: 4px;" id="category-filters">
+                <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px; width: auto;" onclick="filterCategory('all')">Все</button>
+            </div>
+
+            <div class="section-title">
+                <span>Доступные стикеры</span>
+                <span style="font-size: 12px; color: var(--text-secondary);" id="total-stickers-count">0 шт.</span>
+            </div>
+
+            <div class="stickers-grid" id="stickers-grid"></div>
+
+            <div id="bottom-bar-container"></div>
+
+            <div class="communist-quote">
+                <i class="fa-solid fa-hammer-and-sickle"></i>
+                «Каждому по потребностям, от каждого по способностям. Всё необходимое для людей должно быть всеобщим достоянием и предоставляться абсолютно бесплатно!» <br><strong>— Марксистский тезис</strong>
+            </div>
+        </div>
+
+        <!-- СТРАНИЦА 2: НАБОРЫ -->
+        <div id="page-packs" class="page hidden">
+            <div class="section-title"><span>Мои собранные паки</span></div>
+            <div id="packs-list">
+                <div style="color: var(--text-secondary); text-align: center; padding: 40px 0; font-size: 13px;">Вы еще не скачали ни одного пака. Выберите стикеры на главной и нажмите «Оформить».</div>
+            </div>
+        </div>
+
+        <!-- СТРАНИЦА 3: РЕДАКТОР -->
+        <div id="page-editor" class="page hidden">
+            <div style="display: flex; gap: 8px; overflow-x: auto; padding-bottom: 10px; margin-bottom: 12px;" id="editor-tabs"></div>
+
+            <!-- Вкладки выбора шрифтов -->
+            <div class="section-title" style="font-size: 14px; margin-bottom: 6px;">Выберите шрифт</div>
+            <div class="fonts-selector-container" id="fonts-tabs-container">
+                <!-- Динамически заполняются встроенные шрифты -->
+            </div>
+
+            <div style="background: var(--surface-card); border-radius: 8px; width: 100%; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden; margin-bottom: 16px; border: 1px solid var(--border-color);" id="editor-preview-container">
+                <div id="editor-lottie-target" style="width: 100%; height: 100%;"></div>
+            </div>
+
+            <div class="control-group" id="global-sync-box">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="apply-to-all" checked onchange="toggleGlobalSync()">
+                    <span>Применить настройки ко всем выбранным стикерам</span>
+                </label>
+                <div style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;" id="sync-notice">
+                    Изменения текста и параметров применяются ко всей группе. Снимите галочку, чтобы настроить этот стикер индивидуально.
+                </div>
+            </div>
+
+            <div class="control-group">
+                <input type="text" id="edit-text" placeholder="Текст (ник)..." value="name" oninput="onConfigChange()">
+                
+                <div class="control-row">
+                    <span>Отразить текст (по вертикали)</span>
+                    <input type="checkbox" id="edit-flip" onchange="onConfigChange()">
+                </div>
+                
+                <div class="control-row">
+                    <span>Цвет шрифта</span>
+                    <input type="color" id="edit-color-text" value="#ffffff" oninput="onConfigChange()">
+                </div>
+
+                <div class="control-row">
+                    <span>Размер шрифта</span>
+                    <input type="range" id="edit-size" min="20" max="300" value="100" oninput="onConfigChange()">
+                </div>
+
+                <div class="control-row">
+                    <span>Смещение по X</span>
+                    <input type="range" id="edit-posx" min="-250" max="250" value="0" oninput="onConfigChange()">
+                </div>
+
+                <div class="control-row">
+                    <span>Смещение по Y</span>
+                    <input type="range" id="edit-posy" min="-300" max="300" value="0" oninput="onConfigChange()">
+                </div>
+
+                <div class="control-row">
+                    <span>Цвет фигуры</span>
+                    <input type="color" id="edit-color-shape" value="#000000" oninput="onConfigChange()">
+                </div>
+
+                <div class="control-row">
+                    <span>Цвет обводки</span>
+                    <input type="color" id="edit-color-stroke" value="#ffffff" oninput="onConfigChange()">
+                </div>
+
+                <div class="control-row">
+                    <span>Толщина обводки</span>
+                    <input type="range" id="edit-strokesize" min="0" max="40" value="9" oninput="onConfigChange()">
+                </div>
+            </div>
+
+            <div style="margin-bottom: 20px;">
+                <label class="btn btn-secondary" style="margin-bottom: 8px;">
+                    <i class="fa-solid fa-font"></i> Загрузить свой шрифт (.ttf / .otf)
+                    <input type="file" id="font-file-input" accept=".ttf,.otf" style="display:none;" onchange="loadCustomFont(event)">
+                </label>
+                <button class="btn" onclick="saveAndCompilePack()"><i class="fa-solid fa-download"></i> Собрать и скачать архив (.zip)</button>
+            </div>
+        </div>
+
+        <!-- СТРАНИЦА 4: ПРОФИЛЬ -->
+        <div id="page-profile" class="page hidden">
+            <div class="section-title"><span>Профиль и данные</span></div>
+            <div class="control-group">
+                <div style="margin-bottom: 12px; font-size: 14px;">Статус: <strong style="color: #4ade80;">Свободный доступ (Коммунизм)</strong></div>
+                <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 16px;">Все генерации, скачивания и инструменты предоставляются абсолютно бесплатно без каких-либо подписок и PRO-аккаунтов.</div>
+                <button class="btn btn-secondary" onclick="clearLocalStorage()"><i class="fa-solid fa-trash"></i> Сбросить локальные данные</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Статус-бар (Андроид-стиль) -->
+    <nav class="status-bar">
+        <button class="nav-item active" onclick="switchTab('home', this)">
+            <i class="fa-solid fa-house"></i>
+            <span>Главная</span>
+        </button>
+        <button class="nav-item" onclick="switchTab('packs', this)">
+            <i class="fa-solid fa-box-archive"></i>
+            <span>Паки</span>
+        </button>
+        <button class="nav-item" onclick="switchTab('editor', this)" id="nav-editor-btn">
+            <i class="fa-solid fa-wand-magic-sparkles"></i>
+            <span>Редактор</span>
+        </button>
+        <button class="nav-item" onclick="switchTab('profile', this)">
+            <i class="fa-solid fa-user"></i>
+            <span>Профиль</span>
+        </button>
+    </nav>
+</div>
+
+<script>
+    let availableStickers = [];
+    let categories = new Set();
+    let currentCategory = 'all';
+    
+    let selectedStickersIDs = [];
+    let stickerConfigs = {};
+    let globalConfig = {
+        text: "name",
+        flip: false,
+        textColor: "#ffffff",
+        size: 100,
+        posX: 0,
+        posY: 25,
+        shapeColor: "#000000",
+        strokeColor: "#ffffff",
+        strokeSize: 9,
+        fontKey: 'default'
+    };
+    
+    let activeEditorId = null;
+    let currentAnimInstance = null;
+
+    // Библиотека встроенных шрифтов (пути к публичным TTF/OTF шрифтам из открытых источников)
+    const builtinFonts = {
+        'Impact': 'https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.66/fonts/Roboto-Bold.ttf', // надежный аналог жирного без засечек
+        'Roboto': 'https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.66/fonts/Roboto-Regular.ttf',
+        'Roboto Medium': 'https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.66/fonts/Roboto-Medium.ttf',
+        'Courier': 'https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.66/fonts/Courier.ttf',
+        'Courier Bold': 'https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.66/fonts/Courier-Bold.ttf'
+    };
+
+    let loadedFontsCache = {};
+    let activeFontKey = 'Impact';
+    let activeCustomFontObj = null; // если пользователь загрузил свой файл
+
+    window.addEventListener('DOMContentLoaded', async () => {
+        loadFromLocalStorage();
+        await scanStickersFolder();
+        renderCategories();
+        renderStickersGrid();
+        updateHeaderStatus();
+        await preloadDefaultFonts();
+    });
+
+    async function preloadDefaultFonts() {
+        // Загружаем первый шрифт по умолчанию при старте
+        try {
+            let firstKey = Object.keys(builtinFonts)[0];
+            activeFontKey = firstKey;
+            let res = await fetch(builtinFonts[firstKey]);
+            let buf = await res.arrayBuffer();
+            loadedFontsCache[firstKey] = opentype.parse(buf);
+        } catch(e) {
+            console.error("Не удалось предзагрузить шрифт", e);
+        }
+        renderFontTabs();
+    }
+
+    function renderFontTabs() {
+        let container = document.getElementById('fonts-tabs-container');
+        container.innerHTML = '';
+        
+        // Встроенные шрифты
+        Object.keys(builtinFonts).forEach(fKey => {
+            let isActive = (activeFontKey === fKey && !activeCustomFontObj);
+            container.innerHTML += `
+                <div class="font-tab ${isActive ? 'active' : ''}" onclick="selectBuiltinFont('${fKey}')">${fKey}</div>
+            `;
+        });
+
+        // Если загружен кастомный пользовательский шрифт
+        if (activeCustomFontObj) {
+            container.innerHTML += `
+                <div class="font-tab active" onclick="selectCustomFontTab()">Свой шрифт</div>
+            `;
+        }
+    }
+
+    async function selectBuiltinFont(fKey) {
+        activeFontKey = fKey;
+        activeCustomFontObj = null;
+        if (!loadedFontsCache[fKey]) {
+            try {
+                let res = await fetch(builtinFonts[fKey]);
+                let buf = await res.arrayBuffer();
+                loadedFontsCache[fKey] = opentype.parse(buf);
+            } catch(e) {
+                alert('Не удалось загрузить выбранный шрифт.');
+                return;
+            }
+        }
+        renderFontTabs();
+        onConfigChange();
+    }
+
+    async function scanStickersFolder() {
+        const demoStickers = [
+            { id: "watch_1", name: "watch_1", category: "watch", url: "stickers/watch_1.json" },
+            { id: "bag_1", name: "bag_1", category: "bags", url: "stickers/bag_1.json" },
+            { id: "pepe_1", name: "pepe_1", category: "memes", url: "stickers/pepe_1.json" },
+            { id: "poo_1", name: "poo_1", category: "memes", url: "stickers/poo_1.json" },
+        ];
+
+        let savedCustom = localStorage.getItem('km_custom_stickers');
+        if (savedCustom) {
+            try {
+                let parsed = JSON.parse(savedCustom);
+                availableStickers = [...demoStickers, ...parsed];
+            } catch(e) { availableStickers = demoStickers; }
+        } else {
+            availableStickers = demoStickers;
+        }
+
+        availableStickers.forEach(s => categories.add(s.category));
+    }
+
+    function renderCategories() {
+        const container = document.getElementById('category-filters');
+        container.innerHTML = `<button class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px; width: auto;" onclick="filterCategory('all')">Все</button>`;
+        categories.forEach(cat => {
+            container.innerHTML += `<button class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px; width: auto;" onclick="filterCategory('${cat}')">${cat}</button>`;
+        });
+    }
+
+    function filterCategory(cat) {
+        currentCategory = cat;
+        renderStickersGrid();
+    }
+
+    function renderStickersGrid() {
+        const grid = document.getElementById('stickers-grid');
+        grid.innerHTML = '';
+        
+        let filtered = availableStickers.filter(s => currentCategory === 'all' || s.category === currentCategory);
+        document.getElementById('total-stickers-count').innerText = `${filtered.length} шт.`;
+
+        if (filtered.length === 0) {
+            grid.innerHTML = `<div style="grid-column: span 3; text-align:center; color:var(--text-secondary); padding: 30px 0; font-size:13px;">Нет стикеров в этой категории. Создайте папку stickers в репозитории GitHub.</div>`;
+            return;
+        }
+
+        filtered.forEach(s => {
+            let isSelected = selectedStickersIDs.includes(s.id);
+            grid.innerHTML += `
+                <div class="sticker-card ${isSelected ? 'selected' : ''}" onclick="toggleStickerSelection('${s.id}')">
+                    <div class="badge">${s.category}</div>
+                    <div class="preview-box" id="thumb-${s.id}"><i class="fa-solid fa-image" style="color:var(--text-secondary)"></i></div>
+                    <div style="font-size: 10px; margin-top: 4px; color: var(--text-secondary); text-overflow: ellipsis; overflow: hidden; width: 90%; text-align: center;">${s.name}</div>
+                </div>
+            `;
+            loadThumbnail(s);
+        });
+
+        renderBottomActionPanel();
+    }
+
+    async function loadThumbnail(sticker) {
+        try {
+            let res = await fetch(sticker.url);
+            if (!res.ok) return;
+            let textData = await res.text();
+            let json = JSON.parse(textData);
+            let container = document.getElementById(`thumb-${sticker.id}`);
+            if (container) {
+                container.innerHTML = '';
+                lottie.loadAnimation({
+                    container: container,
+                    renderer: 'svg',
+                    loop: false,
+                    autoplay: false,
+                    animationData: json
+                });
+            }
+        } catch(e) {}
+    }
+
+    function toggleStickerSelection(id) {
+        let idx = selectedStickersIDs.indexOf(id);
+        if (idx > -1) {
+            selectedStickersIDs.splice(idx, 1);
+            delete stickerConfigs[id];
+        } else {
+            selectedStickersIDs.push(id);
+            stickerConfigs[id] = JSON.parse(JSON.stringify(globalConfig));
+        }
+        renderStickersGrid();
+        updateHeaderStatus();
+    }
+
+    function renderBottomActionPanel() {
+        let container = document.getElementById('bottom-bar-container');
+        if (selectedStickersIDs.length > 0) {
+            container.innerHTML = `
+                <div class="bottom-action-panel">
+                    <div>Выбрано: <strong>${selectedStickersIDs.length} стикеров</strong></div>
+                    <button class="btn" style="width: auto; padding: 8px 16px;" onclick="switchToEditor()">Оформить <i class="fa-solid fa-arrow-right"></i></button>
+                </div>
+            `;
+        } else {
+            container.innerHTML = '';
+        }
+    }
+
+    function switchTab(tabId, el) {
+        document.querySelectorAll('.page').forEach(p => p.classList.add('hidden'));
+        document.getElementById(`page-${tabId}`).classList.remove('hidden');
+        
+        document.querySelectorAll('.status-bar .nav-item').forEach(n => n.classList.remove('active'));
+        if (el) el.classList.add('active');
+
+        if (tabId === 'editor') {
+            initEditor();
+        }
+    }
+
+    function switchToEditor() {
+        if (selectedStickersIDs.length === 0) {
+            alert('Выберите хотя бы один стикер!');
+            return;
+        }
+        switchTab('editor', document.getElementById('nav-editor-btn'));
+    }
+
+    function initEditor() {
+        if (selectedStickersIDs.length === 0) return;
+        if (!activeEditorId || !selectedStickersIDs.includes(activeEditorId)) {
+            activeEditorId = selectedStickersIDs[0];
+        }
+        renderEditorTabs();
+        renderFontTabs();
+        loadConfigToUI(activeEditorId);
+        updateEditorPreview();
+    }
+
+    function renderEditorTabs() {
+        let container = document.getElementById('editor-tabs');
+        container.innerHTML = '';
+        selectedStickersIDs.forEach((id, idx) => {
+            let st = availableStickers.find(s => s.id === id);
+            let isActive = id === activeEditorId;
+            let isCustomized = stickerConfigs[id]?.__isCustomized;
+            container.innerHTML += `
+                <div onclick="selectEditorSticker('${id}')" style="min-width: 50px; height: 50px; background: var(--surface-card); border: 2px solid ${isActive ? 'var(--text-main)' : 'var(--border-color)'}; border-radius: 6px; display:flex; align-items:center; justify-content:center; cursor:pointer; position:relative;">
+                    <span style="font-size:10px; color:var(--text-secondary);">${idx+1}</span>
+                    ${isCustomized ? '<span style="position:absolute; top:2px; right:2px; width:6px; height:6px; background:#4ade80; border-radius:50%;"></span>' : ''}
+                </div>
+            `;
+        });
+    }
+
+    function selectEditorSticker(id) {
+        activeEditorId = id;
+        renderEditorTabs();
+        loadConfigToUI(id);
+        updateEditorPreview();
+    }
+
+    function toggleGlobalSync() {
+        let isGlobal = document.getElementById('apply-to-all').checked;
+        if (isGlobal) {
+            stickerConfigs[activeEditorId] = JSON.parse(JSON.stringify(globalConfig));
+            delete stickerConfigs[activeEditorId].__isCustomized;
+        }
+        updateEditorPreview();
+    }
+
+    function onConfigChange() {
+        let isGlobal = document.getElementById('apply-to-all').checked;
+        let cfg = {
+            text: document.getElementById('edit-text').value,
+            flip: document.getElementById('edit-flip').checked,
+            textColor: document.getElementById('edit-color-text').value,
+            size: parseInt(document.getElementById('edit-size').value),
+            posX: parseInt(document.getElementById('edit-posx').value),
+            posY: parseInt(document.getElementById('edit-posy').value),
+            shapeColor: document.getElementById('edit-color-shape').value,
+            strokeColor: document.getElementById('edit-color-stroke').value,
+            strokeSize: parseInt(document.getElementById('edit-strokesize').value),
+            fontKey: activeFontKey,
+            __isCustomized: !isGlobal
+        };
+
+        if (isGlobal) {
+            globalConfig = JSON.parse(JSON.stringify(cfg));
+            delete globalConfig.__isCustomized;
+            selectedStickersIDs.forEach(id => {
+                stickerConfigs[id] = JSON.parse(JSON.stringify(globalConfig));
+            });
+        } else {
+            stickerConfigs[activeEditorId] = cfg;
+        }
+
+        renderEditorTabs();
+        updateEditorPreview();
+    }
+
+    function loadConfigToUI(id) {
+        let cfg = stickerConfigs[id] || globalConfig;
+        let isGlobal = !cfg.__isCustomized;
+        
+        document.getElementById('apply-to-all').checked = isGlobal;
+        document.getElementById('edit-text').value = cfg.text || "name";
+        document.getElementById('edit-flip').checked = cfg.flip;
+        document.getElementById('edit-color-text').value = cfg.textColor || "#ffffff";
+        document.getElementById('edit-size').value = cfg.size || 100;
+        document.getElementById('edit-posx').value = cfg.posX || 0;
+        document.getElementById('edit-posy').value = cfg.posY || 25;
+        document.getElementById('edit-color-shape').value = cfg.shapeColor || "#000000";
+        document.getElementById('edit-color-stroke').value = cfg.strokeColor || "#ffffff";
+        document.getElementById('edit-strokesize').value = cfg.strokeSize || 9;
+
+        if (cfg.fontKey) {
+            activeFontKey = cfg.fontKey;
+            renderFontTabs();
+        }
+    }
+
+    async function updateEditorPreview() {
+        let st = availableStickers.find(s => s.id === activeEditorId);
+        if (!st) return;
+
+        let container = document.getElementById('editor-lottie-target');
+        if (currentAnimInstance) currentAnimInstance.destroy();
+
+        try {
+            let res = await fetch(st.url);
+            let json = await res.json();
+            
+            await applyCustomizationToJSON(json, stickerConfigs[activeEditorId] || globalConfig);
+
+            currentAnimInstance = lottie.loadAnimation({
+                container: container,
+                renderer: 'svg',
+                loop: true,
+                autoplay: true,
+                animationData: json
+            });
+        } catch(e) {
+            container.innerHTML = `<div style="color:var(--text-secondary); font-size:12px;">Ошибка загрузки файла стикера</div>`;
+        }
+    }
+
+    async function getActiveFontObject(cfg) {
+        if (activeCustomFontObj) return activeCustomFontObj;
+        let fKey = cfg.fontKey || activeFontKey;
+        if (loadedFontsCache[fKey]) return loadedFontsCache[fKey];
+        
+        try {
+            let res = await fetch(builtinFonts[fKey] || builtinFonts['Impact']);
+            let buf = await res.arrayBuffer();
+            loadedFontsCache[fKey] = opentype.parse(buf);
+            return loadedFontsCache[fKey];
+        } catch(e) {
+            return null;
+        }
+    }
+
+    async function applyCustomizationToJSON(data, cfg) {
+        const text = cfg.text || "name";
+        const shouldFlipY = cfg.flip;
+        const textColorLottie = hexToRgb(cfg.textColor || "#ffffff");
+        const shapeColorLottie = hexToRgb(cfg.shapeColor || "#000000");
+        const strokeColorLottie = hexToRgb(cfg.strokeColor || "#ffffff");
+        const userScale = (cfg.size || 100) / 100;
+        const offsetX = cfg.posX || 0;
+        const offsetY = cfg.posY || 25;
+        const strokeSize = cfg.strokeSize !== undefined ? cfg.strokeSize : 9;
+
+        let fontToUse = await getActiveFontObject(cfg);
+        let fontSize = 100;
+        if (!fontToUse) return;
+
+        const path = fontToUse.getPath(text, 0, 0, fontSize);
+        let contours = [];
+        let currentContour = null;
+
+        path.commands.forEach(cmd => {
+            const flipY = (val) => shouldFlipY ? -val : val;
+            if (cmd.type === 'M') {
+                if (currentContour) contours.push(currentContour);
+                currentContour = { type: 'M', points: [[cmd.x, flipY(cmd.y)]] };
+            } else if (cmd.type === 'L') {
+                if (currentContour) currentContour.points.push([cmd.x, flipY(cmd.y)]);
+            } else if (cmd.type === 'C') {
+                if (currentContour) currentContour.points.push([cmd.x1, flipY(cmd.y1)], [cmd.x2, flipY(cmd.y2)], [cmd.x, flipY(cmd.y)]);
+            } else if (cmd.type === 'Q') {
+                if (currentContour) currentContour.points.push([cmd.x1, flipY(cmd.y1)], [cmd.x, flipY(cmd.y)]);
+            } else if (cmd.type === 'Z') {
+                if (currentContour) { currentContour.closed = true; contours.push(currentContour); currentContour = null; }
+            }
+        });
+        if (currentContour) contours.push(currentContour);
+        if (contours.length === 0) return;
+
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        contours.forEach(c => c.points.forEach(p => {
+            if(p[0]<minX) minX=p[0]; if(p[0]>maxX) maxX=p[0];
+            if(p[1]<minY) minY=p[1]; if(p[1]>maxY) maxY=p[1];
+        }));
+        const textW = maxX - minX || 1;
+        const textH = maxY - minY || 1;
+        const textCx = minX + textW / 2;
+        const textCy = minY + textH / 2;
+
+        let candidates = [];
+        let allTextContainers = [];
+
+        function walk(obj) {
+            if (Array.isArray(obj)) { obj.forEach(walk); return; }
+            if (obj && typeof obj === 'object') {
+                if (obj.ty === 'fl' && obj.nm !== 'km_color' && obj.nm !== 'контур' && obj.c && obj.c.k) {
+                    if (Array.isArray(obj.c.k) && obj.c.k.length >= 3) obj.c.k = shapeColorLottie;
+                }
+                if (obj.ty === 'st' && obj.c) {
+                    if (obj.c.k) obj.c.k = strokeColorLottie;
+                    if (strokeSize !== undefined) obj.w = { a: 0, k: strokeSize };
+                }
+                if (obj.it && (obj.nm === 'надпись' || obj.nm === 'EMOJI' || obj.nm === 'Rectangle')) {
+                    let letters = [];
+                    function findLetters(container) {
+                        if (!container.it) return;
+                        container.it.forEach(item => {
+                            if (item.nm && item.nm.startsWith('буква')) letters.push(item);
+                            if (item.it) findLetters(item);
+                        });
+                    }
+                    findLetters(obj);
+                    if (letters.length > 0) {
+                        allTextContainers.push(obj);
+                        let bx0 = Infinity, by0 = Infinity, bx1 = -Infinity, by1 = -Infinity;
+                        letters.forEach(l => {
+                            const sh = l.it.find(i => i.ty === 'sh');
+                            if (sh && sh.ks && sh.ks.k) {
+                                let keyFrames = Array.isArray(sh.ks.k) ? sh.ks.k : [sh.ks.k];
+                                keyFrames.forEach(kf => {
+                                    let points = kf.v || (kf.s && kf.s[0] && kf.s[0].v);
+                                    if (points) {
+                                        points.forEach(p => {
+                                            if(p[0]<bx0) bx0=p[0]; if(p[0]>bx1) bx1=p[0];
+                                            if(p[1]<by0) by0=p[1]; if(p[1]>by1) by1=p[1];
+                                        });
+                                    }
+                                });
+                            }
+                        });
+                        if (bx0 !== Infinity) {
+                            candidates.push({ obj, bx0, bx1, by0, by1, dist: Math.hypot((bx0+bx1)/2 - 256, (by0+by1)/2 - 256) });
+                        }
+                    }
+                }
+                for (let key in obj) walk(obj[key]);
+            }
+        }
+        walk(data);
+
+        let best = candidates.reduce((a, b) => (!a || b.dist < a.dist) ? b : a, null);
+        allTextContainers.forEach(container => {
+            container.it = container.it.filter(i => !(i.nm && i.nm.startsWith('буква')));
+        });
+
+        if (best) {
+            const { obj, bx0, bx1, by0, by1 } = best;
+            const boxW = bx1 - bx0 || 1;
+            const boxH = by1 - by0 || 1;
+            const boxCx = (bx0 + bx1) / 2 + offsetX;
+            const boxCy = (by0 + by1) / 2 + offsetY;
+            const scale = Math.min(boxW / textW, boxH / textH) * 0.85 * userScale;
+
+            const newShapes = contours.map(c => {
+                const v = c.points.map(p => [ ((p[0] - textCx) * scale) + boxCx, ((p[1] - textCy) * scale) + boxCy ]);
+                return { ty: "sh", nm: "контур", ks: { a: 0, k: { c: c.closed, v: v, i: v.map(() => [0,0]), o: v.map(() => [0,0]) } } };
+            });
+
+            const unifiedWordShape = {
+                ty: "gr",
+                nm: "новая надпись",
+                it: [
+                    ...newShapes,
+                    { ty: "fl", nm: "km_color", c: { a: 0, k: textColorLottie }, o: { a: 0, k: 100 }, r: 1, bm: 0 },
+                    { ty: "tr", p: { a: 0, k: [0, 0] }, a: { a: 0, k: [0, 0] }, s: { a: 0, k: [100, 100] }, r: { a: 0, k: 0 }, o: { a: 0, k: 100 }, sk: { a: 0, k: 0 }, sa: { a: 0, k: 0 } }
+                ]
+            };
+            obj.it.unshift(unifiedWordShape);
+        }
+    }
+
+    function hexToRgb(hex) {
+        let r = parseInt(hex.slice(1, 3), 16) / 255;
+        let g = parseInt(hex.slice(3, 5), 16) / 255;
+        let b = parseInt(hex.slice(5, 7), 16) / 255;
+        return [r, g, b, 1];
+    }
+
+    function loadCustomFont(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                activeCustomFontObj = opentype.parse(e.target.result);
+                renderFontTabs();
+                alert('Свой шрифт успешно загружен и применен!');
+                updateEditorPreview();
+            } catch(err) {
+                alert('Ошибка чтения файла шрифта.');
+            }
+        };
+        reader.readAsArrayBuffer(file);
+    }
+
+    async function saveAndCompilePack() {
+        const zip = new JSZip();
+        const folder = zip.folder("KMStickers_Pack");
+
+        for (let id of selectedStickersIDs) {
+            let st = availableStickers.find(s => s.id === id);
+            if (!st) continue;
+            try {
+                let res = await fetch(st.url);
+                let json = await res.json();
+                let cfg = stickerConfigs[id] || globalConfig;
+                await applyCustomizationToJSON(json, cfg);
+
+                let compressed = pako.gzip(JSON.stringify(json));
+                folder.file(`${st.name}.tgs`, compressed);
+            } catch(e) {}
+        }
+
+        let content = await zip.generateAsync({ type: "blob" });
+        let url = URL.createObjectURL(content);
+        let a = document.createElement('a');
+        a.href = url;
+        a.download = "KMStickers_Pack.zip";
+        a.click();
+        URL.revokeObjectURL(url);
+
+        savePackHistory(selectedStickersIDs.length);
+        alert('Пак успешно скомпилирован и скачан бесплатно!');
+    }
+
+    function savePackHistory(count) {
+        let packs = JSON.parse(localStorage.getItem('km_packs') || '[]');
+        packs.push({ date: new Date().toLocaleDateString(), count: count });
+        localStorage.setItem('km_packs', JSON.stringify(packs));
+        renderPacksPage();
+    }
+
+    function renderPacksPage() {
+        let container = document.getElementById('packs-list');
+        let packs = JSON.parse(localStorage.getItem('km_packs') || '[]');
+        if (packs.length === 0) {
+            container.innerHTML = `<div style="color: var(--text-secondary); text-align: center; padding: 40px 0; font-size: 13px;">Вы еще не скачали ни одного пака.</div>`;
+            return;
+        }
+        container.innerHTML = '';
+        packs.forEach((p, idx) => {
+            container.innerHTML += `
+                <div class="control-group" style="display:flex; justify-content:space-between; align-items:center;">
+                    <div>
+                        <div style="font-weight:600; font-size:14px;">Пак #${idx+1}</div>
+                        <div style="font-size:11px; color:var(--text-secondary); margin-top:2px;">Стикеров: ${p.count} | Дата: ${p.date}</div>
+                    </div>
+                    <i class="fa-solid fa-check" style="color: #4ade80;"></i>
+                </div>
+            `;
+        });
+    }
+
+    function loadFromLocalStorage() {
+        renderPacksPage();
+    }
+
+    function clearLocalStorage() {
+        if (confirm('Сбросить локальные данные и настройки?')) {
+            localStorage.clear();
+            selectedStickersIDs = [];
+            stickerConfigs = {};
+            renderStickersGrid();
+            renderPacksPage();
+            alert('Данные сброшены.');
+        }
+    }
+
+    function updateHeaderStatus() {
+        let el = document.getElementById('header-status');
+        el.innerText = selectedStickersIDs.length > 0 ? `Выбрано: ${selectedStickersIDs.length}` : 'Готов к работе';
+    }
+</script>
+</body>
+</html>
