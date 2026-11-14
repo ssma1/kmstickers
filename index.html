@@ -822,6 +822,7 @@
         let progressFill = document.getElementById('progress-fill');
 
         const packSpecs = [
+            { prefix: 'new', max: 157 },
             { prefix: 'characters', max: 60 },
             { prefix: 'classic', max: 145 },
             { prefix: 'love', max: 30 },
@@ -1450,7 +1451,6 @@
         const textW = maxX - minX || 1;
         const textH = maxY - minY || 1;
 
-        // Ищем прекомпозицию 'mylogo' либо аналогичный контейнер с надписью
         let targetGroup = null;
         let originalLetterColor = null;
         let bx0 = Infinity, by0 = Infinity, bx1 = -Infinity, by1 = -Infinity;
@@ -1482,7 +1482,6 @@
                                 const fl = l.it ? l.it.find(i => i.ty === 'fl' && i.c && Array.isArray(i.c.k)) : null;
                                 if (fl) originalLetterColor = [...fl.c.k];
                             }
-                            // Скрываем старые буквы оригинального логотипа, чтобы они не накладывались
                             l.hd = true;
                             
                             const sh = l.it ? l.it.find(i => i.ty === 'sh') : (l.ty === 'sh' ? l : null);
@@ -1493,7 +1492,6 @@
                                     if (points) {
                                         points.forEach(p => {
                                             if(p[0]<bx0) bx0=p[0]; if(p[0]>bx1) bx1=p[0];
-                                            if(p[1]<by0) by0=by1=p[1]; // сохраняем габариты
                                             if(p[1]<by0) by0=p[1]; if(p[1]>by1) by1=p[1];
                                         });
                                     }
@@ -1506,12 +1504,10 @@
             }
         }
 
-        // Проходим по assets и layers
         if (data.assets) data.assets.forEach(asset => scanForTextContainer(asset));
         if (data.layers) data.layers.forEach(layer => scanForTextContainer(layer));
 
         if (!targetGroup) {
-            // Фолбэк: если конкретный контейнер не найден, берем первый попавшийся с контурами
             let fallbackCandidates = [];
             function scanFallback(obj) {
                 if (Array.isArray(obj)) { obj.forEach(scanFallback); return; }
@@ -1641,7 +1637,7 @@
                 alert('Ошибка чтения файла шрифта.');
             }
         };
-        reader.readAsArrayBuffer(e.target.result);
+        reader.readAsArrayBuffer(file);
     }
 
     async function buildSingleStickerBlob(id) {
