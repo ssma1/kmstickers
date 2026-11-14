@@ -18,6 +18,7 @@
             --text-main: #ffffff;
             --text-secondary: #a0a0a0;
             --accent-red: #ff3333;
+            --tg-blue: #24A1DE;
         }
 
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; -webkit-tap-highlight-color: transparent; }
@@ -112,6 +113,7 @@
             grid-template-columns: repeat(3, 1fr);
             gap: 10px;
             margin-bottom: 80px;
+            contain: content;
         }
 
         .sticker-card {
@@ -126,7 +128,8 @@
             cursor: pointer;
             position: relative;
             overflow: hidden;
-            transition: border-color 0.2s;
+            transition: border-color 0.15s;
+            contain: layout paint;
         }
 
         .sticker-card.selected {
@@ -135,8 +138,8 @@
         }
 
         .sticker-card .preview-box {
-            width: 80%;
-            height: 80%;
+            width: 78%;
+            height: 78%;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -146,11 +149,12 @@
             position: absolute;
             top: 4px;
             right: 4px;
-            background: rgba(0,0,0,0.6);
+            background: rgba(0,0,0,0.65);
             color: white;
             font-size: 8px;
             padding: 2px 4px;
             border-radius: 4px;
+            z-index: 2;
         }
 
         .btn {
@@ -168,6 +172,7 @@
             align-items: center;
             justify-content: center;
             gap: 8px;
+            text-decoration: none;
             transition: opacity 0.2s;
         }
         .btn:hover { opacity: 0.9; }
@@ -180,6 +185,12 @@
             padding: 6px 10px;
             font-size: 12px;
             width: auto;
+        }
+
+        .cat-btn.active-cat {
+            background: var(--text-main);
+            color: var(--bg-color);
+            border-color: var(--text-main);
         }
 
         input[type="text"], select, textarea {
@@ -348,6 +359,65 @@
         .editor-tab-item.active { border-color: var(--text-main); }
         .editor-tab-item.independent { opacity: 0.45; }
         .editor-tab-preview { width: 85%; height: 85%; }
+
+        /* Модальное окно скачивания по отдельности */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.85);
+            z-index: 2000;
+            display: flex;
+            justify-content: center;
+            align-items: flex-end;
+        }
+        .modal-sheet {
+            width: 100%;
+            max-width: 480px;
+            max-height: 88vh;
+            background: var(--surface-color);
+            border-top: 1px solid var(--border-color);
+            border-left: 1px solid var(--border-color);
+            border-right: 1px solid var(--border-color);
+            border-radius: 12px 12px 0 0;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .modal-header {
+            padding: 14px 16px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .modal-body {
+            padding: 14px 16px;
+            overflow-y: auto;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .single-download-row {
+            background: var(--surface-card);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 10px 12px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .single-download-thumb {
+            width: 52px;
+            height: 52px;
+            background: var(--bg-color);
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            overflow: hidden;
+        }
     </style>
 </head>
 <body>
@@ -364,19 +434,17 @@
         <!-- СТРАНИЦА 1: ГЛАВНАЯ -->
         <div id="page-home" class="page">
             <div id="loading-indicator">
-                <div id="loading-text">Загрузка стикеров (0/58)...</div>
+                <div id="loading-text">Сканирование коллекции стикеров...</div>
                 <div class="progress-bar-container">
                     <div class="progress-bar-fill" id="progress-fill"></div>
                 </div>
             </div>
 
-            <div style="margin-bottom: 16px;">
-                <input type="text" id="search-input" placeholder="Поиск стикеров по названию..." oninput="filterSearch(this.value)">
+            <div style="margin-bottom: 12px;">
+                <input type="text" id="search-input" placeholder="Поиск стикеров по названию..." oninput="filterSearch(this.value)" style="margin-bottom: 0;">
             </div>
 
-            <div style="display: flex; gap: 8px; margin-bottom: 16px; overflow-x: auto; padding-bottom: 4px;" id="category-filters">
-                <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px; width: auto;" onclick="filterCategory('all')">Все</button>
-            </div>
+            <div style="display: flex; gap: 8px; margin-bottom: 16px; overflow-x: auto; padding-bottom: 4px;" id="category-filters"></div>
 
             <div class="section-title">
                 <span>Доступные стикеры</span>
@@ -432,73 +500,108 @@
             </div>
 
             <div class="control-group">
-                <input type="text" id="edit-text" placeholder="Текст (ник)..." value="name" oninput="onConfigChange()">
+                <input type="text" id="edit-text" placeholder="Текст (ник)..." value="name" oninput="scheduleConfigChange()">
                 
                 <div class="control-row">
                     <span>Отразить текст (по вертикали)</span>
-                    <input type="checkbox" id="edit-flip" onchange="onConfigChange()">
+                    <input type="checkbox" id="edit-flip" onchange="scheduleConfigChange()">
                 </div>
                 
                 <div class="control-row">
-                    <span>Цвет шрифта</span>
-                    <input type="color" id="edit-color-text" value="#ffffff" oninput="onConfigChange()">
+                    <span>Цвет текста</span>
+                    <input type="color" id="edit-color-text" value="#ffffff" oninput="scheduleConfigChange()">
+                </div>
+
+                <div class="control-row">
+                    <span>Цвет обводки текста</span>
+                    <input type="color" id="edit-color-text-stroke" value="#000000" oninput="scheduleConfigChange()">
+                </div>
+
+                <div class="control-row">
+                    <span>Толщина обводки текста</span>
+                    <input type="range" id="edit-text-strokesize" min="0" max="25" value="0" oninput="scheduleConfigChange()">
                 </div>
 
                 <div class="control-row">
                     <span>Размер шрифта</span>
-                    <input type="range" id="edit-size" min="20" max="300" value="100" oninput="onConfigChange()">
+                    <input type="range" id="edit-size" min="20" max="300" value="100" oninput="scheduleConfigChange()">
                 </div>
 
                 <div class="control-row">
                     <span>Смещение по X</span>
-                    <input type="range" id="edit-posx" min="-250" max="250" value="0" oninput="onConfigChange()">
+                    <input type="range" id="edit-posx" min="-250" max="250" value="0" oninput="scheduleConfigChange()">
                 </div>
 
                 <div class="control-row">
                     <span>Смещение по Y</span>
-                    <input type="range" id="edit-posy" min="-300" max="300" value="25" oninput="onConfigChange()">
+                    <input type="range" id="edit-posy" min="-300" max="300" value="25" oninput="scheduleConfigChange()">
                 </div>
 
                 <div class="control-row">
                     <span>Цвет фигуры (палитра)</span>
-                    <input type="color" id="edit-color-shape" value="#ff0000" oninput="onPaletteInput('shape')">
+                    <input type="color" id="edit-color-shape" value="#ff0000" oninput="schedulePaletteInput('shape')">
                 </div>
 
                 <div class="control-row">
-                    <span>Цвет обводки</span>
-                    <input type="color" id="edit-color-stroke" value="#ffffff" oninput="onPaletteInput('stroke')">
+                    <span>Цвет обводки стикера</span>
+                    <input type="color" id="edit-color-stroke" value="#ffffff" oninput="schedulePaletteInput('stroke')">
                 </div>
 
                 <div class="control-row">
-                    <span>Толщина обводки</span>
-                    <input type="range" id="edit-strokesize" min="0" max="40" value="9" oninput="onPaletteInput('strokeSize')">
+                    <span>Толщина обводки стикера</span>
+                    <input type="range" id="edit-strokesize" min="0" max="40" value="9" oninput="schedulePaletteInput('strokeSize')">
                 </div>
             </div>
 
-            <div style="margin-bottom: 20px;">
-                <label class="btn btn-secondary" style="margin-bottom: 8px;">
+            <div style="margin-bottom: 20px; display: flex; flex-direction: column; gap: 8px;">
+                <label class="btn btn-secondary">
                     <i class="fa-solid fa-font"></i> Загрузить свой шрифт (.ttf / .otf)
                     <input type="file" id="font-file-input" accept=".ttf,.otf" style="display:none;" onchange="loadCustomFont(event)">
                 </label>
-                <button class="btn" onclick="saveAndCompilePack()"><i class="fa-solid fa-download"></i> Собрать и скачать архив (.zip)</button>
+                <button class="btn" onclick="saveAndCompilePack()"><i class="fa-solid fa-file-zipper"></i> Скачать ZIP-архив</button>
+                <button class="btn btn-secondary" onclick="openSingleDownloadModal()"><i class="fa-solid fa-list-check"></i> Скачать по отдельности</button>
             </div>
         </div>
 
-        <!-- СТРАНИЦА 4: ПРОФИЛЬ -->
-        <div id="page-profile" class="page hidden">
-            <div class="section-title"><span>Профиль пользователя</span></div>
-            <div class="control-group">
-                <div style="margin-bottom: 12px; font-size: 14px;">Никнейм</div>
-                <input type="text" id="profile-name" placeholder="Ваш ник" oninput="saveProfileData()">
-
-                <div style="margin-bottom: 6px; font-size: 14px;">Username (@)</div>
-                <input type="text" id="profile-username" placeholder="@username" oninput="saveProfileData()">
-
-                <div style="margin-bottom: 6px; font-size: 14px;">Описание</div>
-                <textarea id="profile-bio" rows="2" placeholder="О себе..." oninput="saveProfileData()"></textarea>
-
-                <div style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">Данные сохраняются локально в вашем браузере.</div>
+        <!-- СТРАНИЦА 4: СВЯЗЬ -->
+        <div id="page-contact" class="page hidden">
+            <div class="section-title"><span>Связь с автором</span></div>
+            <div class="control-group" style="text-align: center; padding: 28px 18px;">
+                <div style="width: 64px; height: 64px; margin: 0 auto 14px; background: rgba(36, 161, 222, 0.15); border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+                    <svg width="34" height="34" viewBox="0 0 24 24" fill="#24A1DE" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/>
+                    </svg>
+                </div>
+                <div style="font-size: 16px; font-weight: 700; margin-bottom: 8px;">Вы можете связаться в Telegram</div>
+                <div style="font-size: 13px; color: var(--text-secondary); margin-bottom: 18px; line-height: 1.4;">
+                    По вопросам добавления новых стикерпаков, багам или предложениям пишите напрямую в личные сообщения.
+                </div>
+                <a href="https://t.me/CMEPTb_AHTUKOMAM" target="_blank" rel="noopener noreferrer" class="btn" style="background: #24A1DE; color: #ffffff;">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="#ffffff" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/>
+                    </svg>
+                    Написать (@CMEPTb_AHTUKOMAM)
+                </a>
             </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно скачивания стикеров по отдельности -->
+    <div id="single-download-modal" class="modal-overlay hidden">
+        <div class="modal-sheet">
+            <div class="modal-header">
+                <button class="btn btn-secondary btn-small" onclick="closeSingleDownloadModal()"><i class="fa-solid fa-arrow-left"></i> Назад</button>
+                <span style="font-weight: 700; font-size: 14px;">Скачать по отдельности</span>
+                <button class="btn btn-secondary btn-small" onclick="closeSingleDownloadModal()"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div style="padding: 10px 16px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; background: var(--bg-color);">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="single-select-all" checked onchange="toggleAllSingleCheckboxes(this.checked)">
+                    <span>Выбрать всё</span>
+                </label>
+                <button class="btn btn-small" onclick="downloadCheckedSingleStickers()"><i class="fa-solid fa-download"></i> Скачать выбранные</button>
+            </div>
+            <div class="modal-body" id="single-download-list"></div>
         </div>
     </div>
 
@@ -519,9 +622,9 @@
             <i class="fa-solid fa-wand-magic-sparkles"></i>
             <span>Редактор</span>
         </button>
-        <button class="nav-item" onclick="switchTab('profile', this)">
-            <i class="fa-solid fa-user"></i>
-            <span>Профиль</span>
+        <button class="nav-item" onclick="switchTab('contact', this)">
+            <i class="fa-solid fa-paper-plane"></i>
+            <span>Связь</span>
         </button>
     </nav>
 </div>
@@ -535,13 +638,18 @@
     
     let selectedStickersIDs = [];
     let stickerConfigs = {};
-    
-    // shapeColor, strokeColor, strokeSize = null означает, что используется РОДНАЯ палитра стикера
+
+    // Кэш сырых JSON-строк стикеров для мгновенного клонирования без повторных fetch
+    const rawStickerJsonCache = new Map();
+    let thumbObserver = null;
+
     function createDefaultConfig() {
         return {
             text: "name",
             flip: false,
             textColor: "#ffffff",
+            textStrokeColor: "#000000",
+            textStrokeSize: 0,
             size: 100,
             posX: 0,
             posY: 25,
@@ -560,8 +668,8 @@
     let historyStack = [];
     let historyIndex = -1;
     let isPerformingUndoRedo = false;
+    let previewRafId = null;
 
-    // Все шрифты строго из локальной папки fonts/
     const builtinFonts = {
         'Impact': 'fonts/Impact.ttf',
         'Roboto': 'fonts/Roboto.ttf',
@@ -574,7 +682,6 @@
     let activeCustomFontObj = null;
 
     window.addEventListener('DOMContentLoaded', async () => {
-        loadProfileData();
         loadFromLocalStorage();
         await preloadAllLocalFonts();
         await scanStickersFolder();
@@ -596,15 +703,12 @@
             loadedFontsCache[fKey] = parsed;
             return parsed;
         } catch (e) {
-            console.warn(`Шрифт ${fKey} (${url}) не загрузился:`, e);
             return null;
         }
     }
 
     async function preloadAllLocalFonts() {
-        for (const key of Object.keys(builtinFonts)) {
-            await loadFontFile(key);
-        }
+        await Promise.all(Object.keys(builtinFonts).map(key => loadFontFile(key)));
         renderFontTabs();
     }
 
@@ -630,44 +734,60 @@
     async function selectBuiltinFont(fKey) {
         let fontObj = await loadFontFile(fKey);
         if (!fontObj) {
-            // Если файл шрифта в репозитории пустой/битый, берем Impact как запасной без всплывающих окон-ошибок
             fontObj = await loadFontFile('Impact');
             if (!fontObj) return;
         }
         activeFontKey = fKey;
         activeCustomFontObj = null;
         renderFontTabs();
-        onConfigChange();
+        scheduleConfigChange();
     }
 
     function selectCustomFontTab() {
         if (!activeCustomFontObj) return;
         renderFontTabs();
-        onConfigChange();
+        scheduleConfigChange();
     }
 
+    // Быстрая проверка существования файла через HEAD и сканирование characters (1..58) и classic (1..145)
     async function scanStickersFolder() {
         let indicator = document.getElementById('loading-indicator');
         let loadText = document.getElementById('loading-text');
         let progressFill = document.getElementById('progress-fill');
 
-        let fileNames = [];
+        let candidates = [];
         for (let i = 1; i <= 58; i++) {
             let numStr = String(i).padStart(3, '0');
-            fileNames.push(`characters-${numStr}.tgs`);
+            candidates.push({ id: `characters-${numStr}`, name: `characters-${numStr}`, category: 'characters', url: `stickers/characters-${numStr}.tgs` });
+        }
+        for (let i = 1; i <= 145; i++) {
+            let numStr = String(i).padStart(3, '0');
+            candidates.push({ id: `classic-${numStr}`, name: `classic-${numStr}`, category: 'classic', url: `stickers/classic-${numStr}.tgs` });
         }
 
-        let loadedCount = 0;
-        availableStickers = fileNames.map(filename => {
-            let category = filename.split('-')[0] || 'characters';
-            let name = filename.replace('.tgs', '');
-            return {
-                id: name,
-                name: name,
-                category: category,
-                url: `stickers/${filename}`
-            };
-        });
+        let checked = 0;
+        const total = candidates.length;
+        const valid = [];
+
+        // Проверяем пачками по 25 файлов параллельно для максимальной скорости
+        const batchSize = 25;
+        for (let i = 0; i < total; i += batchSize) {
+            const batch = candidates.slice(i, i + batchSize);
+            const results = await Promise.all(batch.map(async item => {
+                try {
+                    const res = await fetch(item.url, { method: 'HEAD' });
+                    return res.ok ? item : null;
+                } catch (_) {
+                    return null;
+                }
+            }));
+            results.forEach(r => { if (r) valid.push(r); });
+            checked += batch.length;
+            if (loadText) loadText.innerText = `Загрузка стикеров (${valid.length} найдено)...`;
+            if (progressFill) progressFill.style.width = `${Math.min(100, Math.round((checked / total) * 100))}%`;
+        }
+
+        availableStickers = valid;
 
         let savedCustom = localStorage.getItem('km_custom_stickers');
         if (savedCustom) {
@@ -678,31 +798,25 @@
         }
 
         availableStickers.forEach(s => categories.add(s.category));
-
-        let total = availableStickers.length;
-        let interval = setInterval(() => {
-            loadedCount += Math.ceil(total / 10);
-            if (loadedCount >= total) {
-                loadedCount = total;
-                clearInterval(interval);
-                if (indicator) indicator.style.display = 'none';
-            }
-            if (loadText) loadText.innerText = `Загружено стикеров: ${loadedCount}/${total}`;
-            if (progressFill) progressFill.style.width = `${(loadedCount/total)*100}%`;
-        }, 50);
+        if (indicator) indicator.style.display = 'none';
     }
 
+    // Отображаем категории вместе с количеством стикеров в каждой
     function renderCategories() {
         const container = document.getElementById('category-filters');
         if (!container) return;
-        container.innerHTML = `<button class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px; width: auto;" onclick="filterCategory('all')">Все</button>`;
+        const totalCount = availableStickers.length;
+        container.innerHTML = `<button class="btn btn-secondary btn-small cat-btn ${currentCategory === 'all' ? 'active-cat' : ''}" onclick="filterCategory('all')">Все (${totalCount})</button>`;
+        
         categories.forEach(cat => {
-            container.innerHTML += `<button class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px; width: auto;" onclick="filterCategory('${cat}')">${cat}</button>`;
+            const catCount = availableStickers.filter(s => s.category === cat).length;
+            container.innerHTML += `<button class="btn btn-secondary btn-small cat-btn ${currentCategory === cat ? 'active-cat' : ''}" onclick="filterCategory('${cat}')">${cat} (${catCount})</button>`;
         });
     }
 
     function filterCategory(cat) {
         currentCategory = cat;
+        renderCategories();
         renderStickersGrid();
     }
 
@@ -714,6 +828,10 @@
     function renderStickersGrid() {
         const grid = document.getElementById('stickers-grid');
         if (!grid) return;
+
+        if (thumbObserver) {
+            thumbObserver.disconnect();
+        }
         grid.innerHTML = '';
         
         let filtered = availableStickers.filter(s => {
@@ -730,42 +848,65 @@
             return;
         }
 
+        const fragment = document.createDocumentFragment();
         filtered.forEach(s => {
             let isSelected = selectedStickersIDs.includes(s.id);
-            grid.innerHTML += `
-                <div class="sticker-card ${isSelected ? 'selected' : ''}" onclick="toggleStickerSelection('${s.id}')">
-                    <div class="badge">${s.category}</div>
-                    <div class="preview-box" id="thumb-${s.id}"><i class="fa-solid fa-image" style="color:var(--text-secondary)"></i></div>
-                    <div style="font-size: 9px; margin-top: 4px; color: var(--text-secondary); text-overflow: ellipsis; overflow: hidden; width: 90%; text-align: center;">${s.name}</div>
-                </div>
+            const card = document.createElement('div');
+            card.className = `sticker-card ${isSelected ? 'selected' : ''}`;
+            card.dataset.stickerId = s.id;
+            card.onclick = () => toggleStickerSelection(s.id, card);
+            card.innerHTML = `
+                <div class="badge">${s.category}</div>
+                <div class="preview-box" id="thumb-${s.id}"><i class="fa-solid fa-image" style="color:var(--text-secondary)"></i></div>
+                <div style="font-size: 9px; margin-top: 4px; color: var(--text-secondary); text-overflow: ellipsis; overflow: hidden; width: 90%; text-align: center;">${s.name}</div>
             `;
-            loadThumbnail(s);
+            fragment.appendChild(card);
         });
+        grid.appendChild(fragment);
 
+        // Ленивая подгрузка превью только для карточек, попавших в область видимости экрана
+        thumbObserver = new IntersectionObserver((entries, obs) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    const id = entry.target.dataset.stickerId;
+                    const st = availableStickers.find(x => x.id === id);
+                    if (st) loadThumbnail(st);
+                    obs.unobserve(entry.target);
+                }
+            });
+        }, { rootMargin: '150px' });
+
+        grid.querySelectorAll('.sticker-card').forEach(card => thumbObserver.observe(card));
         renderBottomActionPanel();
     }
 
     async function fetchStickerJson(url) {
+        if (rawStickerJsonCache.has(url)) {
+            return JSON.parse(rawStickerJsonCache.get(url));
+        }
         let res = await fetch(url);
         if (!res.ok) throw new Error("File not found");
         let buffer = await res.arrayBuffer();
+        let jsonStr;
         try {
-            let decompressed = pako.inflate(new Uint8Array(buffer), { to: 'string' });
-            return JSON.parse(decompressed);
+            jsonStr = pako.inflate(new Uint8Array(buffer), { to: 'string' });
         } catch(err) {
-            let text = new TextDecoder().decode(buffer);
-            return JSON.parse(text);
+            jsonStr = new TextDecoder().decode(buffer);
         }
+        rawStickerJsonCache.set(url, jsonStr);
+        return JSON.parse(jsonStr);
     }
 
-    // Превью на главной: заменяем ник автора на "name", сохраняя родной цвет букв и родную палитру стикера
+    // Оптимизированное превью на главной: статичный первый кадр (без 200 одновременных циклов) + замена текста на "name"
     async function loadThumbnail(sticker) {
         try {
             let json = await fetchStickerJson(sticker.url);
             await applyCustomizationToJSON(json, {
                 text: "name",
                 flip: false,
-                textColor: null, // null = сохранить родной цвет текста из стикера!
+                textColor: null,
+                textStrokeColor: null,
+                textStrokeSize: 0,
                 size: 100,
                 posX: 0,
                 posY: 0,
@@ -777,27 +918,30 @@
             let container = document.getElementById(`thumb-${sticker.id}`);
             if (container) {
                 container.innerHTML = '';
-                lottie.loadAnimation({
+                const anim = lottie.loadAnimation({
                     container: container,
                     renderer: 'svg',
-                    loop: true,
-                    autoplay: true,
+                    loop: false,
+                    autoplay: false,
                     animationData: json
                 });
+                anim.goToAndStop(0, true);
             }
         } catch(e) {}
     }
 
-    function toggleStickerSelection(id) {
+    function toggleStickerSelection(id, cardEl) {
         let idx = selectedStickersIDs.indexOf(id);
         if (idx > -1) {
             selectedStickersIDs.splice(idx, 1);
             delete stickerConfigs[id];
+            if (cardEl) cardEl.classList.remove('selected');
         } else {
             selectedStickersIDs.push(id);
             stickerConfigs[id] = JSON.parse(JSON.stringify(globalConfig));
+            if (cardEl) cardEl.classList.add('selected');
         }
-        renderStickersGrid();
+        renderBottomActionPanel();
         updateHeaderStatus();
     }
 
@@ -828,6 +972,8 @@
 
         if (tabId === 'editor') {
             initEditor();
+        } else if (currentAnimInstance) {
+            currentAnimInstance.pause();
         }
     }
 
@@ -869,19 +1015,19 @@
             container.appendChild(tabDiv);
 
             if (st) {
-                try {
-                    let json = await fetchStickerJson(st.url);
+                fetchStickerJson(st.url).then(json => {
                     let subCont = document.getElementById(`edit-thumb-${id}`);
                     if (subCont) {
-                        lottie.loadAnimation({
+                        const a = lottie.loadAnimation({
                             container: subCont,
                             renderer: 'svg',
                             loop: false,
                             autoplay: false,
                             animationData: json
                         });
+                        a.goToAndStop(0, true);
                     }
-                } catch(e) {}
+                }).catch(() => {});
             }
         }
     }
@@ -906,7 +1052,23 @@
         saveHistoryState();
     }
 
-    // Изменение текста, шрифта, позиции или цвета шрифта
+    // Плавный дебаунс для ползунков, чтобы редактор не лагал
+    function scheduleConfigChange() {
+        if (previewRafId) cancelAnimationFrame(previewRafId);
+        previewRafId = requestAnimationFrame(() => {
+            onConfigChange();
+            previewRafId = null;
+        });
+    }
+
+    function schedulePaletteInput(field) {
+        if (previewRafId) cancelAnimationFrame(previewRafId);
+        previewRafId = requestAnimationFrame(() => {
+            onPaletteInput(field);
+            previewRafId = null;
+        });
+    }
+
     function onConfigChange() {
         if (isPerformingUndoRedo || !activeEditorId) return;
 
@@ -916,6 +1078,8 @@
         currentCfg.text = document.getElementById('edit-text').value;
         currentCfg.flip = document.getElementById('edit-flip').checked;
         currentCfg.textColor = document.getElementById('edit-color-text').value;
+        currentCfg.textStrokeColor = document.getElementById('edit-color-text-stroke').value;
+        currentCfg.textStrokeSize = parseInt(document.getElementById('edit-text-strokesize').value);
         currentCfg.size = parseInt(document.getElementById('edit-size').value);
         currentCfg.posX = parseInt(document.getElementById('edit-posx').value);
         currentCfg.posY = parseInt(document.getElementById('edit-posy').value);
@@ -923,36 +1087,42 @@
         currentCfg.__isIndividual = !isGlobal;
 
         if (isGlobal) {
-            globalConfig.text = currentCfg.text;
-            globalConfig.flip = currentCfg.flip;
-            globalConfig.textColor = currentCfg.textColor;
-            globalConfig.size = currentCfg.size;
-            globalConfig.posX = currentCfg.posX;
-            globalConfig.posY = currentCfg.posY;
-            globalConfig.fontKey = currentCfg.fontKey;
+            Object.assign(globalConfig, {
+                text: currentCfg.text,
+                flip: currentCfg.flip,
+                textColor: currentCfg.textColor,
+                textStrokeColor: currentCfg.textStrokeColor,
+                textStrokeSize: currentCfg.textStrokeSize,
+                size: currentCfg.size,
+                posX: currentCfg.posX,
+                posY: currentCfg.posY,
+                fontKey: currentCfg.fontKey
+            });
 
             selectedStickersIDs.forEach(id => {
                 if (!stickerConfigs[id]) stickerConfigs[id] = createDefaultConfig();
                 if (!stickerConfigs[id].__isIndividual) {
-                    stickerConfigs[id].text = globalConfig.text;
-                    stickerConfigs[id].flip = globalConfig.flip;
-                    stickerConfigs[id].textColor = globalConfig.textColor;
-                    stickerConfigs[id].size = globalConfig.size;
-                    stickerConfigs[id].posX = globalConfig.posX;
-                    stickerConfigs[id].posY = globalConfig.posY;
-                    stickerConfigs[id].fontKey = globalConfig.fontKey;
+                    Object.assign(stickerConfigs[id], {
+                        text: globalConfig.text,
+                        flip: globalConfig.flip,
+                        textColor: globalConfig.textColor,
+                        textStrokeColor: globalConfig.textStrokeColor,
+                        textStrokeSize: globalConfig.textStrokeSize,
+                        size: globalConfig.size,
+                        posX: globalConfig.posX,
+                        posY: globalConfig.posY,
+                        fontKey: globalConfig.fontKey
+                    });
                 }
             });
         } else {
             stickerConfigs[activeEditorId] = currentCfg;
         }
 
-        renderEditorTabs();
         updateEditorPreview();
         saveHistoryState();
     }
 
-    // Явное изменение палитры пользователем (цвет фигуры / цвет обводки / толщина обводки)
     function onPaletteInput(field) {
         if (isPerformingUndoRedo || !activeEditorId) return;
 
@@ -981,12 +1151,10 @@
             stickerConfigs[activeEditorId] = currentCfg;
         }
 
-        renderEditorTabs();
         updateEditorPreview();
         saveHistoryState();
     }
 
-    // Сброс настроек: возвращает родную палитру и базовые настройки
     function resetCurrentSticker() {
         if (!activeEditorId) return;
         let isGlobal = document.getElementById('apply-to-all').checked;
@@ -1020,6 +1188,10 @@
         };
         historyIndex++;
         historyStack = historyStack.slice(0, historyIndex);
+        if (historyStack.length > 30) {
+            historyStack.shift();
+            historyIndex--;
+        }
         historyStack.push(stateSnapshot);
     }
 
@@ -1056,6 +1228,8 @@
         document.getElementById('edit-text').value = cfg.text !== undefined ? cfg.text : "name";
         document.getElementById('edit-flip').checked = !!cfg.flip;
         document.getElementById('edit-color-text').value = cfg.textColor || "#ffffff";
+        document.getElementById('edit-color-text-stroke').value = cfg.textStrokeColor || "#000000";
+        document.getElementById('edit-text-strokesize').value = cfg.textStrokeSize !== undefined ? cfg.textStrokeSize : 0;
         document.getElementById('edit-size').value = cfg.size !== undefined ? cfg.size : 100;
         document.getElementById('edit-posx').value = cfg.posX !== undefined ? cfg.posX : 0;
         document.getElementById('edit-posy').value = cfg.posY !== undefined ? cfg.posY : 25;
@@ -1074,11 +1248,16 @@
         if (!st) return;
 
         let container = document.getElementById('editor-lottie-target');
-        if (currentAnimInstance) currentAnimInstance.destroy();
-
+        
         try {
             let json = await fetchStickerJson(st.url);
             await applyCustomizationToJSON(json, stickerConfigs[activeEditorId] || globalConfig);
+
+            if (currentAnimInstance) {
+                currentAnimInstance.destroy();
+                currentAnimInstance = null;
+            }
+            container.innerHTML = '';
 
             currentAnimInstance = lottie.loadAnimation({
                 container: container,
@@ -1104,6 +1283,8 @@
         const text = cfg.text !== undefined ? cfg.text : "name";
         const shouldFlipY = cfg.flip;
         const customTextColorLottie = cfg.textColor ? hexToRgb(cfg.textColor) : null;
+        const textStrokeColorLottie = cfg.textStrokeColor ? hexToRgb(cfg.textStrokeColor) : [0, 0, 0, 1];
+        const textStrokeSize = cfg.textStrokeSize || 0;
         const shapeColorLottie = cfg.shapeColor ? hexToRgb(cfg.shapeColor) : null;
         const strokeColorLottie = cfg.strokeColor ? hexToRgb(cfg.strokeColor) : null;
         const userScale = (cfg.size || 100) / 100;
@@ -1154,12 +1335,10 @@
         function walk(obj) {
             if (Array.isArray(obj)) { obj.forEach(walk); return; }
             if (obj && typeof obj === 'object') {
-                // Меняем палитру фигуры ТОЛЬКО если пользователь сам задал shapeColorLottie
                 if (shapeColorLottie && obj.ty === 'fl' && obj.nm !== 'km_color' && obj.nm !== 'контур' && obj.c && obj.c.k) {
                     if (Array.isArray(obj.c.k) && obj.c.k.length >= 3) obj.c.k = shapeColorLottie;
                 }
-                // Меняем обводку ТОЛЬКО если пользователь сам задал strokeColorLottie / strokeSize
-                if (obj.ty === 'st' && obj.c) {
+                if (obj.ty === 'st' && obj.nm !== 'km_text_stroke' && obj.c) {
                     if (strokeColorLottie && obj.c.k) obj.c.k = strokeColorLottie;
                     if (strokeSize !== undefined && strokeSize !== null) obj.w = { a: 0, k: strokeSize };
                 }
@@ -1225,14 +1404,32 @@
                 return { ty: "sh", nm: "контур", ks: { a: 0, k: { c: c.closed, v: v, i: v.map(() => [0,0]), o: v.map(() => [0,0]) } } };
             });
 
+            const shapeItems = [...newShapes];
+
+            // Добавляем обводку самого текста (если толщина > 0)
+            if (textStrokeSize > 0) {
+                shapeItems.push({
+                    ty: "st",
+                    nm: "km_text_stroke",
+                    c: { a: 0, k: textStrokeColorLottie },
+                    o: { a: 0, k: 100 },
+                    w: { a: 0, k: textStrokeSize },
+                    lc: 2,
+                    lj: 2,
+                    ml: 4,
+                    bm: 0
+                });
+            }
+
+            shapeItems.push(
+                { ty: "fl", nm: "km_color", c: { a: 0, k: finalTextColor }, o: { a: 0, k: 100 }, r: 1, bm: 0 },
+                { ty: "tr", p: { a: 0, k: [0, 0] }, a: { a: 0, k: [0, 0] }, s: { a: 0, k: [100, 100] }, r: { a: 0, k: 0 }, o: { a: 0, k: 100 }, sk: { a: 0, k: 0 }, sa: { a: 0, k: 0 } }
+            );
+
             const unifiedWordShape = {
                 ty: "gr",
                 nm: "новая надпись",
-                it: [
-                    ...newShapes,
-                    { ty: "fl", nm: "km_color", c: { a: 0, k: finalTextColor }, o: { a: 0, k: 100 }, r: 1, bm: 0 },
-                    { ty: "tr", p: { a: 0, k: [0, 0] }, a: { a: 0, k: [0, 0] }, s: { a: 0, k: [100, 100] }, r: { a: 0, k: 0 }, o: { a: 0, k: 100 }, sk: { a: 0, k: 0 }, sa: { a: 0, k: 0 } }
-                ]
+                it: shapeItems
             };
             obj.it.unshift(unifiedWordShape);
         }
@@ -1261,11 +1458,14 @@
                 JSON.parse(jsonStr);
 
                 let customId = "custom_" + Date.now();
+                let blobUrl = URL.createObjectURL(file);
+                rawStickerJsonCache.set(blobUrl, jsonStr);
+
                 let newSticker = {
                     id: customId,
                     name: file.name.replace(/\.[^/.]+$/, ""),
                     category: "custom",
-                    url: URL.createObjectURL(file)
+                    url: blobUrl
                 };
                 availableStickers.push(newSticker);
                 categories.add("custom");
@@ -1302,20 +1502,103 @@
         reader.readAsArrayBuffer(file);
     }
 
+    // Генерация одного готового .tgs файла (Blob)
+    async function buildSingleStickerBlob(id) {
+        let st = availableStickers.find(s => s.id === id);
+        if (!st) return null;
+        let json = await fetchStickerJson(st.url);
+        let cfg = stickerConfigs[id] || globalConfig;
+        await applyCustomizationToJSON(json, cfg);
+        let compressed = pako.gzip(JSON.stringify(json));
+        return {
+            name: `${st.name}.tgs`,
+            blob: new Blob([compressed], { type: 'application/gzip' }),
+            json: json
+        };
+    }
+
+    async function downloadSingleStickerFile(id) {
+        try {
+            const built = await buildSingleStickerBlob(id);
+            if (!built) return;
+            let url = URL.createObjectURL(built.blob);
+            let a = document.createElement('a');
+            a.href = url;
+            a.download = built.name;
+            a.click();
+            URL.revokeObjectURL(url);
+        } catch(e) {}
+    }
+
+    // Модальное окно «Скачать по отдельности»
+    async function openSingleDownloadModal() {
+        const modal = document.getElementById('single-download-modal');
+        const list = document.getElementById('single-download-list');
+        document.getElementById('single-select-all').checked = true;
+        list.innerHTML = '';
+        modal.classList.remove('hidden');
+
+        for (let id of selectedStickersIDs) {
+            let st = availableStickers.find(s => s.id === id);
+            if (!st) continue;
+
+            const row = document.createElement('div');
+            row.className = 'single-download-row';
+            row.innerHTML = `
+                <input type="checkbox" class="single-item-chk" value="${id}" checked style="width:18px; height:18px; accent-color:var(--text-main);">
+                <div class="single-download-thumb" id="single-prev-${id}"></div>
+                <div style="flex: 1; overflow: hidden;">
+                    <div style="font-size: 13px; font-weight: 600; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">${st.name}.tgs</div>
+                    <div style="font-size: 11px; color: var(--text-secondary);">${st.category}</div>
+                </div>
+                <button class="btn btn-secondary btn-small" onclick="downloadSingleStickerFile('${id}')"><i class="fa-solid fa-download"></i> Скачать</button>
+            `;
+            list.appendChild(row);
+
+            buildSingleStickerBlob(id).then(built => {
+                const thumbEl = document.getElementById(`single-prev-${id}`);
+                if (built && thumbEl) {
+                    const a = lottie.loadAnimation({
+                        container: thumbEl,
+                        renderer: 'svg',
+                        loop: false,
+                        autoplay: false,
+                        animationData: built.json
+                    });
+                    a.goToAndStop(0, true);
+                }
+            }).catch(() => {});
+        }
+    }
+
+    function closeSingleDownloadModal() {
+        document.getElementById('single-download-modal').classList.add('hidden');
+        document.getElementById('single-download-list').innerHTML = '';
+    }
+
+    function toggleAllSingleCheckboxes(checked) {
+        document.querySelectorAll('.single-item-chk').forEach(chk => chk.checked = checked);
+    }
+
+    async function downloadCheckedSingleStickers() {
+        const checkedBoxes = Array.from(document.querySelectorAll('.single-item-chk:checked'));
+        if (checkedBoxes.length === 0) return;
+
+        for (let chk of checkedBoxes) {
+            await downloadSingleStickerFile(chk.value);
+            await new Promise(r => setTimeout(r, 250));
+        }
+        savePackHistory(checkedBoxes.map(c => c.value));
+    }
+
     async function saveAndCompilePack() {
         const zip = new JSZip();
         const folder = zip.folder("KMStickers_Pack");
 
         for (let id of selectedStickersIDs) {
-            let st = availableStickers.find(s => s.id === id);
-            if (!st) continue;
             try {
-                let json = await fetchStickerJson(st.url);
-                let cfg = stickerConfigs[id] || globalConfig;
-                await applyCustomizationToJSON(json, cfg);
-
-                let compressed = pako.gzip(JSON.stringify(json));
-                folder.file(`${st.name}.tgs`, compressed);
+                const built = await buildSingleStickerBlob(id);
+                if (built) folder.file(built.name, built.blob);
             } catch(e) {}
         }
 
@@ -1369,27 +1652,6 @@
             renderStickersGrid();
             updateHeaderStatus();
             switchToEditor();
-        }
-    }
-
-    function saveProfileData() {
-        let profile = {
-            name: document.getElementById('profile-name').value,
-            username: document.getElementById('profile-username').value,
-            bio: document.getElementById('profile-bio').value
-        };
-        localStorage.setItem('km_profile', JSON.stringify(profile));
-    }
-
-    function loadProfileData() {
-        let saved = localStorage.getItem('km_profile');
-        if (saved) {
-            try {
-                let p = JSON.parse(saved);
-                if (document.getElementById('profile-name')) document.getElementById('profile-name').value = p.name || '';
-                if (document.getElementById('profile-username')) document.getElementById('profile-username').value = p.username || '';
-                if (document.getElementById('profile-bio')) document.getElementById('profile-bio').value = p.bio || '';
-            } catch(e) {}
         }
     }
 
