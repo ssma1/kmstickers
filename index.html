@@ -72,7 +72,6 @@
             overflow-y: auto;
         }
 
-        /* Индикатор загрузки */
         #loading-indicator {
             background: var(--surface-card);
             border: 1px solid var(--border-color);
@@ -177,6 +176,11 @@
             color: var(--text-main);
             border: 1px solid var(--border-color);
         }
+        .btn-small {
+            padding: 6px 10px;
+            font-size: 12px;
+            width: auto;
+        }
 
         input[type="text"], select, textarea {
             width: 100%;
@@ -246,7 +250,6 @@
             font-weight: 600;
         }
 
-        /* Плавающая панель снизу (над тачбаром) */
         .bottom-action-panel {
             position: fixed;
             bottom: 68px;
@@ -265,7 +268,6 @@
             box-shadow: 0 -4px 12px rgba(0,0,0,0.5);
         }
 
-        /* Нижний статус-бар (без скруглений) */
         .status-bar {
             position: fixed;
             bottom: 0;
@@ -324,7 +326,6 @@
             font-size: 13px;
         }
 
-        /* Превью в табах редактора */
         #editor-tabs {
             display: flex;
             gap: 8px;
@@ -363,7 +364,6 @@
     <div class="content" id="main-content">
         <!-- СТРАНИЦА 1: ГЛАВНАЯ -->
         <div id="page-home" class="page">
-            <!-- Индикатор загрузки -->
             <div id="loading-indicator">
                 <div id="loading-text">Загрузка стикеров (0/58)...</div>
                 <div class="progress-bar-container">
@@ -392,7 +392,7 @@
             </div>
         </div>
 
-        <!-- СТРАНИЦА 2: НАБОРЫ (ПАКЫ) -->
+        <!-- СТРАНИЦА 2: ПАКЫ -->
         <div id="page-packs" class="page hidden">
             <div class="section-title"><span>Мои собранные паки</span></div>
             <div id="packs-list">
@@ -402,19 +402,21 @@
 
         <!-- СТРАНИЦА 3: РЕДАКТОР -->
         <div id="page-editor" class="page hidden">
-            <!-- Табы с превью стикеров + кнопка добавления своего -->
-            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+            <!-- Верхняя панель управления редактором: История (Назад/Вперед) + табы + загрузка своего -->
+            <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 12px;">
+                <button class="btn btn-secondary btn-small" onclick="undoAction()" title="Назад"><i class="fa-solid fa-rotate-left"></i></button>
+                <button class="btn btn-secondary btn-small" onclick="redoAction()" title="Вперед"><i class="fa-solid fa-rotate-right"></i></button>
                 <div id="editor-tabs" style="display: flex; gap: 8px; overflow-x: auto; flex: 1; margin-bottom: 0;"></div>
-                <label style="min-width: 55px; height: 55px; background: var(--surface-card); border: 2px dashed var(--border-color); border-radius: 6px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--text-main);" title="Загрузить свой стикер (.json/.tgs)">
-                    <i class="fa-solid fa-plus" style="font-size: 18px;"></i>
+                <label style="min-width: 45px; height: 45px; background: var(--surface-card); border: 2px dashed var(--border-color); border-radius: 6px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--text-main);" title="Загрузить свой стикер">
+                    <i class="fa-solid fa-plus" style="font-size: 16px;"></i>
                     <input type="file" accept=".json,.tgs" style="display:none;" onchange="uploadCustomSticker(event)">
                 </label>
             </div>
-            <div style="font-size: 11px; color: var(--text-secondary); margin-bottom: 12px;">
-                * Загруженные стикеры могут иметь ограничения оптимизации анимации.
-            </div>
 
-            <div class="section-title" style="font-size: 14px; margin-bottom: 6px;">Выберите шрифт</div>
+            <div class="section-title" style="font-size: 14px; margin-bottom: 6px; display:flex; justify-content:space-between; align-items:center;">
+                <span>Выберите шрифт</span>
+                <button class="btn btn-secondary btn-small" onclick="resetCurrentSticker()">Сбросить</button>
+            </div>
             <div class="fonts-selector-container" id="fonts-tabs-container"></div>
 
             <div style="background: var(--surface-card); border-radius: 8px; width: 100%; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden; margin-bottom: 16px; border: 1px solid var(--border-color);" id="editor-preview-container">
@@ -426,8 +428,8 @@
                     <input type="checkbox" id="apply-to-all" checked onchange="toggleGlobalSync()">
                     <span>Применить настройки ко всем выбранным стикерам</span>
                 </label>
-                <div style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;" id="sync-notice">
-                    Текст, цвет шрифта и позиция применяются ко всей группе. Снимите галочку, чтобы настроить этот стикер индивидуально. Оригинальная палитра сохраняется.
+                <div style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">
+                    Текст, цвет шрифта и позиция применяются ко всей группе. Оригинальные цвета стикеров сохраняются по умолчанию.
                 </div>
             </div>
 
@@ -460,8 +462,8 @@
                 </div>
 
                 <div class="control-row">
-                    <span>Цвет фигуры (палитра)</span>
-                    <input type="color" id="edit-color-shape" value="#000000" oninput="onConfigChange(true)">
+                    <span>Цвет фигуры (кастомизация палитры)</span>
+                    <input type="color" id="edit-color-shape" value="#ff0000" oninput="onConfigChange(true)">
                 </div>
 
                 <div class="control-row">
@@ -497,7 +499,7 @@
                 <div style="margin-bottom: 6px; font-size: 14px;">Описание</div>
                 <textarea id="profile-bio" rows="2" placeholder="О себе..." oninput="saveProfileData()"></textarea>
 
-                <div style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">Все данные сохраняются локально в вашем браузере (localStorage).</div>
+                <div style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">Данные сохраняются локально в вашем браузере.</div>
             </div>
         </div>
     </div>
@@ -505,7 +507,7 @@
     <!-- Плавающая панель выбора стикеров -->
     <div id="bottom-bar-container"></div>
 
-    <!-- Статус-бар (Андроид-стиль) -->
+    <!-- Статус-бар -->
     <nav class="status-bar">
         <button class="nav-item active" onclick="switchTab('home', this)">
             <i class="fa-solid fa-house"></i>
@@ -550,7 +552,11 @@
     let activeEditorId = null;
     let currentAnimInstance = null;
 
-    // Шрифты из папки fonts/ или стандартные CDN
+    // Стек для Undo / Redo
+    let historyStack = [];
+    let historyIndex = -1;
+    let isPerformingUndoRedo = false;
+
     const builtinFonts = {
         'Impact': 'fonts/Impact.ttf',
         'Roboto': 'https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.66/fonts/Roboto-Regular.ttf',
@@ -579,7 +585,6 @@
             let buf = await res.arrayBuffer();
             loadedFontsCache['Impact'] = opentype.parse(buf);
         } catch(e) {
-            // Фолбэк на Roboto если локальный Impact не найден
             try {
                 let res2 = await fetch(builtinFonts['Roboto']);
                 let buf2 = await res2.arrayBuffer();
@@ -625,7 +630,7 @@
         onConfigChange();
     }
 
-    // Автоматическое сканирование всех 58 стикеров
+    // Автосканирование 58 стикеров
     async function scanStickersFolder() {
         let indicator = document.getElementById('loading-indicator');
         let loadText = document.getElementById('loading-text');
@@ -649,7 +654,6 @@
             };
         });
 
-        // Проверка локальных кастомных стикеров
         let savedCustom = localStorage.getItem('km_custom_stickers');
         if (savedCustom) {
             try {
@@ -660,7 +664,6 @@
 
         availableStickers.forEach(s => categories.add(s.category));
 
-        // Имитируем плавный прогресс загрузки списка
         let total = availableStickers.length;
         let interval = setInterval(() => {
             loadedCount += Math.ceil(total / 10);
@@ -671,7 +674,7 @@
             }
             if (loadText) loadText.innerText = `Загружено стикеров: ${loadedCount}/${total}`;
             if (progressFill) progressFill.style.width = `${(loadedCount/total)*100}%`;
-        }, 80);
+        }, 50);
     }
 
     function renderCategories() {
@@ -743,7 +746,6 @@
     async function loadThumbnail(sticker) {
         try {
             let json = await fetchStickerJson(sticker.url);
-            // Авто-замена оригинального текста на 'name' в превью
             replaceOriginalTextInJson(json, 'name');
             let container = document.getElementById(`thumb-${sticker.id}`);
             if (container) {
@@ -833,9 +835,9 @@
         renderFontTabs();
         loadConfigToUI(activeEditorId);
         updateEditorPreview();
+        saveHistoryState();
     }
 
-    // Рендер табов редактора с живыми миниатюрами
     async function renderEditorTabs() {
         let container = document.getElementById('editor-tabs');
         if (!container) return;
@@ -888,7 +890,10 @@
         updateEditorPreview();
     }
 
+    // Обработка изменений в конфиге
     function onConfigChange(isPaletteChange = false) {
+        if (isPerformingUndoRedo) return;
+
         let isGlobal = document.getElementById('apply-to-all').checked;
         let cfg = {
             text: document.getElementById('edit-text').value,
@@ -916,6 +921,56 @@
 
         renderEditorTabs();
         updateEditorPreview();
+        saveHistoryState();
+    }
+
+    // Сброс настроек текущего стикера до глобальных или оригинальных
+    function resetCurrentSticker() {
+        if (!activeEditorId) return;
+        stickerConfigs[activeEditorId] = JSON.parse(JSON.stringify(globalConfig));
+        delete stickerConfigs[activeEditorId].__isCustomized;
+        loadConfigToUI(activeEditorId);
+        renderEditorTabs();
+        updateEditorPreview();
+        alert('Настройки стикера сброшены.');
+    }
+
+    // Управление историей (Undo / Redo)
+    function saveHistoryState() {
+        if (isPerformingUndoRedo) return;
+        let stateSnapshot = {
+            global: JSON.parse(JSON.stringify(globalConfig)),
+            configs: JSON.parse(JSON.stringify(stickerConfigs)),
+            active: activeEditorId
+        };
+        historyIndex++;
+        historyStack = historyStack.slice(0, historyIndex);
+        historyStack.push(stateSnapshot);
+    }
+
+    function undoAction() {
+        if (historyIndex > 0) {
+            historyIndex--;
+            applyHistoryState(historyStack[historyIndex]);
+        }
+    }
+
+    function redoAction() {
+        if (historyIndex < historyStack.length - 1) {
+            historyIndex++;
+            applyHistoryState(historyStack[historyIndex]);
+        }
+    }
+
+    function applyHistoryState(state) {
+        isPerformingUndoRedo = true;
+        globalConfig = JSON.parse(JSON.stringify(state.global));
+        stickerConfigs = JSON.parse(JSON.stringify(state.configs));
+        activeEditorId = state.active;
+        loadConfigToUI(activeEditorId);
+        renderEditorTabs();
+        updateEditorPreview();
+        isPerformingUndoRedo = false;
     }
 
     function loadConfigToUI(id) {
@@ -923,15 +978,15 @@
         let isGlobal = !cfg.__isCustomized;
         
         document.getElementById('apply-to-all').checked = isGlobal;
-        document.getElementById('edit-text').value = cfg.text || "name";
-        document.getElementById('edit-flip').checked = cfg.flip;
+        document.getElementById('edit-text').value = cfg.text !== undefined ? cfg.text : "name";
+        document.getElementById('edit-flip').checked = !!cfg.flip;
         document.getElementById('edit-color-text').value = cfg.textColor || "#ffffff";
-        document.getElementById('edit-size').value = cfg.size || 100;
-        document.getElementById('edit-posx').value = cfg.posX || 0;
-        document.getElementById('edit-posy').value = cfg.posY || 25;
-        document.getElementById('edit-color-shape').value = cfg.shapeColor || "#000000";
+        document.getElementById('edit-size').value = cfg.size !== undefined ? cfg.size : 100;
+        document.getElementById('edit-posx').value = cfg.posX !== undefined ? cfg.posX : 0;
+        document.getElementById('edit-posy').value = cfg.posY !== undefined ? cfg.posY : 25;
+        document.getElementById('edit-color-shape').value = cfg.shapeColor || "#ff0000";
         document.getElementById('edit-color-stroke').value = cfg.strokeColor || "#ffffff";
-        document.getElementById('edit-strokesize').value = cfg.strokeSize || 9;
+        document.getElementById('edit-strokesize').value = cfg.strokeSize !== undefined ? cfg.strokeSize : 9;
 
         if (cfg.fontKey) {
             activeFontKey = cfg.fontKey;
@@ -978,7 +1033,7 @@
     }
 
     async function applyCustomizationToJSON(data, cfg) {
-        const text = cfg.text || "name";
+        const text = cfg.text !== undefined ? cfg.text : "name";
         const shouldFlipY = cfg.flip;
         const textColorLottie = hexToRgb(cfg.textColor || "#ffffff");
         const shapeColorLottie = cfg.shapeColor ? hexToRgb(cfg.shapeColor) : null;
@@ -1113,7 +1168,6 @@
         return [r, g, b, 1];
     }
 
-    // Загрузка своего стикера через кнопку +
     function uploadCustomSticker(event) {
         const file = event.target.files[0];
         if (!file) return;
@@ -1227,6 +1281,7 @@
             selectedStickersIDs.forEach(id => {
                 if (!stickerConfigs[id]) stickerConfigs[id] = JSON.parse(JSON.stringify(globalConfig));
             });
+            renderStickersGrid();
             updateHeaderStatus();
             switchToEditor();
         }
