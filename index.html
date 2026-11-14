@@ -252,14 +252,13 @@
 
         .bottom-action-panel {
             position: fixed;
-            bottom: 68px;
+            bottom: 60px;
             left: 50%;
             transform: translateX(-50%);
             width: 100%;
             max-width: 480px;
             background: var(--surface-color);
             border-top: 1px solid var(--border-color);
-            border-bottom: 1px solid var(--border-color);
             padding: 12px 16px;
             display: flex;
             justify-content: space-between;
@@ -330,12 +329,12 @@
             display: flex;
             gap: 8px;
             overflow-x: auto;
-            padding-bottom: 8px;
-            margin-bottom: 12px;
+            padding-bottom: 4px;
+            margin-bottom: 0;
         }
         .editor-tab-item {
-            min-width: 55px;
-            height: 55px;
+            min-width: 48px;
+            height: 48px;
             background: var(--surface-card);
             border: 2px solid var(--border-color);
             border-radius: 6px;
@@ -347,7 +346,7 @@
             overflow: hidden;
         }
         .editor-tab-item.active { border-color: var(--text-main); }
-        .editor-tab-item.independent { opacity: 0.5; }
+        .editor-tab-item.independent { opacity: 0.45; }
         .editor-tab-preview { width: 85%; height: 85%; }
     </style>
 </head>
@@ -392,7 +391,7 @@
             </div>
         </div>
 
-        <!-- СТРАНИЦА 2: ПАКЫ -->
+        <!-- СТРАНИЦА 2: ПАКИ -->
         <div id="page-packs" class="page hidden">
             <div class="section-title"><span>Мои собранные паки</span></div>
             <div id="packs-list">
@@ -402,12 +401,11 @@
 
         <!-- СТРАНИЦА 3: РЕДАКТОР -->
         <div id="page-editor" class="page hidden">
-            <!-- Верхняя панель управления редактором: История (Назад/Вперед) + табы + загрузка своего -->
             <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 12px;">
                 <button class="btn btn-secondary btn-small" onclick="undoAction()" title="Назад"><i class="fa-solid fa-rotate-left"></i></button>
                 <button class="btn btn-secondary btn-small" onclick="redoAction()" title="Вперед"><i class="fa-solid fa-rotate-right"></i></button>
-                <div id="editor-tabs" style="display: flex; gap: 8px; overflow-x: auto; flex: 1; margin-bottom: 0;"></div>
-                <label style="min-width: 45px; height: 45px; background: var(--surface-card); border: 2px dashed var(--border-color); border-radius: 6px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--text-main);" title="Загрузить свой стикер">
+                <div id="editor-tabs" style="display: flex; gap: 8px; overflow-x: auto; flex: 1;"></div>
+                <label style="min-width: 48px; height: 48px; background: var(--surface-card); border: 2px dashed var(--border-color); border-radius: 6px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--text-main);" title="Загрузить свой стикер">
                     <i class="fa-solid fa-plus" style="font-size: 16px;"></i>
                     <input type="file" accept=".json,.tgs" style="display:none;" onchange="uploadCustomSticker(event)">
                 </label>
@@ -429,7 +427,7 @@
                     <span>Применить настройки ко всем выбранным стикерам</span>
                 </label>
                 <div style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">
-                    Текст, цвет шрифта и позиция применяются ко всей группе. Оригинальные цвета стикеров сохраняются по умолчанию.
+                    Родная палитра каждого стикера сохраняется, пока вы сами не измените цвет фигуры или обводки.
                 </div>
             </div>
 
@@ -462,18 +460,18 @@
                 </div>
 
                 <div class="control-row">
-                    <span>Цвет фигуры (кастомизация палитры)</span>
-                    <input type="color" id="edit-color-shape" value="#ff0000" oninput="onConfigChange(true)">
+                    <span>Цвет фигуры (палитра)</span>
+                    <input type="color" id="edit-color-shape" value="#ff0000" oninput="onPaletteInput('shape')">
                 </div>
 
                 <div class="control-row">
                     <span>Цвет обводки</span>
-                    <input type="color" id="edit-color-stroke" value="#ffffff" oninput="onConfigChange(true)">
+                    <input type="color" id="edit-color-stroke" value="#ffffff" oninput="onPaletteInput('stroke')">
                 </div>
 
                 <div class="control-row">
                     <span>Толщина обводки</span>
-                    <input type="range" id="edit-strokesize" min="0" max="40" value="9" oninput="onConfigChange(true)">
+                    <input type="range" id="edit-strokesize" min="0" max="40" value="9" oninput="onPaletteInput('strokeSize')">
                 </div>
             </div>
 
@@ -504,7 +502,7 @@
         </div>
     </div>
 
-    <!-- Плавающая панель выбора стикеров -->
+    <!-- Плавающая панель выбора стикеров (только на главной) -->
     <div id="bottom-bar-container"></div>
 
     <!-- Статус-бар -->
@@ -532,36 +530,43 @@
     let availableStickers = [];
     let categories = new Set();
     let currentCategory = 'all';
+    let currentTab = 'home';
     let searchQuery = '';
     
     let selectedStickersIDs = [];
     let stickerConfigs = {};
-    let globalConfig = {
-        text: "name",
-        flip: false,
-        textColor: "#ffffff",
-        size: 100,
-        posX: 0,
-        posY: 25,
-        shapeColor: "",
-        strokeColor: "",
-        strokeSize: undefined,
-        fontKey: 'Impact'
-    };
     
+    // shapeColor, strokeColor, strokeSize = null означает, что используется РОДНАЯ палитра стикера
+    function createDefaultConfig() {
+        return {
+            text: "name",
+            flip: false,
+            textColor: "#ffffff",
+            size: 100,
+            posX: 0,
+            posY: 25,
+            shapeColor: null,
+            strokeColor: null,
+            strokeSize: null,
+            fontKey: 'Impact',
+            __isIndividual: false
+        };
+    }
+
+    let globalConfig = createDefaultConfig();
     let activeEditorId = null;
     let currentAnimInstance = null;
 
-    // Стек для Undo / Redo
     let historyStack = [];
     let historyIndex = -1;
     let isPerformingUndoRedo = false;
 
+    // Все шрифты строго из локальной папки fonts/
     const builtinFonts = {
         'Impact': 'fonts/Impact.ttf',
-        'Roboto': 'https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.66/fonts/Roboto-Regular.ttf',
-        'Medium': 'https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.66/fonts/Roboto-Medium.ttf',
-        'Courier': 'https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.66/fonts/Courier.ttf'
+        'Roboto': 'fonts/Roboto.ttf',
+        'Medium': 'fonts/Medium.ttf',
+        'Courier': 'fonts/Courier.ttf'
     };
 
     let loadedFontsCache = {};
@@ -571,25 +576,34 @@
     window.addEventListener('DOMContentLoaded', async () => {
         loadProfileData();
         loadFromLocalStorage();
+        await preloadAllLocalFonts();
         await scanStickersFolder();
         renderCategories();
         renderStickersGrid();
         updateHeaderStatus();
-        await preloadDefaultFonts();
     });
 
-    async function preloadDefaultFonts() {
+    async function loadFontFile(fKey) {
+        if (loadedFontsCache[fKey]) return loadedFontsCache[fKey];
+        const url = builtinFonts[fKey];
+        if (!url) return null;
         try {
-            let res = await fetch(builtinFonts['Impact']);
-            if (!res.ok) throw new Error();
-            let buf = await res.arrayBuffer();
-            loadedFontsCache['Impact'] = opentype.parse(buf);
-        } catch(e) {
-            try {
-                let res2 = await fetch(builtinFonts['Roboto']);
-                let buf2 = await res2.arrayBuffer();
-                loadedFontsCache['Impact'] = opentype.parse(buf2);
-            } catch(err) {}
+            const res = await fetch(url);
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const buf = await res.arrayBuffer();
+            const parsed = opentype.parse(buf);
+            if (!parsed || !parsed.glyphs) throw new Error('Invalid font');
+            loadedFontsCache[fKey] = parsed;
+            return parsed;
+        } catch (e) {
+            console.warn(`Шрифт ${fKey} (${url}) не загрузился:`, e);
+            return null;
+        }
+    }
+
+    async function preloadAllLocalFonts() {
+        for (const key of Object.keys(builtinFonts)) {
+            await loadFontFile(key);
         }
         renderFontTabs();
     }
@@ -614,23 +628,24 @@
     }
 
     async function selectBuiltinFont(fKey) {
+        let fontObj = await loadFontFile(fKey);
+        if (!fontObj) {
+            // Если файл шрифта в репозитории пустой/битый, берем Impact как запасной без всплывающих окон-ошибок
+            fontObj = await loadFontFile('Impact');
+            if (!fontObj) return;
+        }
         activeFontKey = fKey;
         activeCustomFontObj = null;
-        if (!loadedFontsCache[fKey]) {
-            try {
-                let res = await fetch(builtinFonts[fKey]);
-                let buf = await res.arrayBuffer();
-                loadedFontsCache[fKey] = opentype.parse(buf);
-            } catch(e) {
-                alert('Не удалось загрузить шрифт.');
-                return;
-            }
-        }
         renderFontTabs();
         onConfigChange();
     }
 
-    // Автосканирование 58 стикеров
+    function selectCustomFontTab() {
+        if (!activeCustomFontObj) return;
+        renderFontTabs();
+        onConfigChange();
+    }
+
     async function scanStickersFolder() {
         let indicator = document.getElementById('loading-indicator');
         let loadText = document.getElementById('loading-text');
@@ -743,39 +758,34 @@
         }
     }
 
+    // Превью на главной: заменяем ник автора на "name", сохраняя родной цвет букв и родную палитру стикера
     async function loadThumbnail(sticker) {
         try {
             let json = await fetchStickerJson(sticker.url);
-            replaceOriginalTextInJson(json, 'name');
+            await applyCustomizationToJSON(json, {
+                text: "name",
+                flip: false,
+                textColor: null, // null = сохранить родной цвет текста из стикера!
+                size: 100,
+                posX: 0,
+                posY: 0,
+                shapeColor: null,
+                strokeColor: null,
+                strokeSize: null,
+                fontKey: 'Impact'
+            });
             let container = document.getElementById(`thumb-${sticker.id}`);
             if (container) {
                 container.innerHTML = '';
                 lottie.loadAnimation({
                     container: container,
                     renderer: 'svg',
-                    loop: false,
-                    autoplay: false,
+                    loop: true,
+                    autoplay: true,
                     animationData: json
                 });
             }
         } catch(e) {}
-    }
-
-    function replaceOriginalTextInJson(data, newText) {
-        function walk(obj) {
-            if (Array.isArray(obj)) { obj.forEach(walk); return; }
-            if (obj && typeof obj === 'object') {
-                if (obj.t && typeof obj.t === 'object' && obj.t.d) {
-                    if (obj.t.d.k) {
-                        obj.t.d.k.forEach(kFrame => {
-                            if (kFrame.s && kFrame.s[0]) kFrame.s[0].t = newText;
-                        });
-                    }
-                }
-                for (let key in obj) walk(obj[key]);
-            }
-        }
-        walk(data);
     }
 
     function toggleStickerSelection(id) {
@@ -794,7 +804,7 @@
     function renderBottomActionPanel() {
         let container = document.getElementById('bottom-bar-container');
         if (!container) return;
-        if (selectedStickersIDs.length > 0) {
+        if (selectedStickersIDs.length > 0 && currentTab === 'home') {
             container.innerHTML = `
                 <div class="bottom-action-panel">
                     <div>Выбрано: <strong>${selectedStickersIDs.length} стикеров</strong></div>
@@ -807,11 +817,14 @@
     }
 
     function switchTab(tabId, el) {
+        currentTab = tabId;
         document.querySelectorAll('.page').forEach(p => p.classList.add('hidden'));
         document.getElementById(`page-${tabId}`).classList.remove('hidden');
         
         document.querySelectorAll('.status-bar .nav-item').forEach(n => n.classList.remove('active'));
         if (el) el.classList.add('active');
+
+        renderBottomActionPanel();
 
         if (tabId === 'editor') {
             initEditor();
@@ -835,7 +848,7 @@
         renderFontTabs();
         loadConfigToUI(activeEditorId);
         updateEditorPreview();
-        saveHistoryState();
+        if (historyStack.length === 0) saveHistoryState();
     }
 
     async function renderEditorTabs() {
@@ -847,10 +860,10 @@
             let id = selectedStickersIDs[i];
             let st = availableStickers.find(s => s.id === id);
             let isActive = id === activeEditorId;
-            let isCustomized = stickerConfigs[id]?.__isCustomized;
+            let isIndep = stickerConfigs[id]?.__isIndividual;
             
             let tabDiv = document.createElement('div');
-            tabDiv.className = `editor-tab-item ${isActive ? 'active' : ''} ${isCustomized ? '' : 'independent'}`;
+            tabDiv.className = `editor-tab-item ${isActive ? 'active' : ''} ${isIndep ? 'independent' : ''}`;
             tabDiv.onclick = () => selectEditorSticker(id);
             tabDiv.innerHTML = `<div class="editor-tab-preview" id="edit-thumb-${id}"></div>`;
             container.appendChild(tabDiv);
@@ -884,39 +897,54 @@
         let isGlobal = document.getElementById('apply-to-all').checked;
         if (isGlobal) {
             stickerConfigs[activeEditorId] = JSON.parse(JSON.stringify(globalConfig));
-            delete stickerConfigs[activeEditorId].__isCustomized;
+            stickerConfigs[activeEditorId].__isIndividual = false;
+        } else {
+            stickerConfigs[activeEditorId].__isIndividual = true;
         }
         renderEditorTabs();
         updateEditorPreview();
+        saveHistoryState();
     }
 
-    // Обработка изменений в конфиге
-    function onConfigChange(isPaletteChange = false) {
-        if (isPerformingUndoRedo) return;
+    // Изменение текста, шрифта, позиции или цвета шрифта
+    function onConfigChange() {
+        if (isPerformingUndoRedo || !activeEditorId) return;
 
         let isGlobal = document.getElementById('apply-to-all').checked;
-        let cfg = {
-            text: document.getElementById('edit-text').value,
-            flip: document.getElementById('edit-flip').checked,
-            textColor: document.getElementById('edit-color-text').value,
-            size: parseInt(document.getElementById('edit-size').value),
-            posX: parseInt(document.getElementById('edit-posx').value),
-            posY: parseInt(document.getElementById('edit-posy').value),
-            shapeColor: document.getElementById('edit-color-shape').value,
-            strokeColor: document.getElementById('edit-color-stroke').value,
-            strokeSize: parseInt(document.getElementById('edit-strokesize').value),
-            fontKey: activeFontKey,
-            __isCustomized: !isGlobal || isPaletteChange
-        };
+        let currentCfg = stickerConfigs[activeEditorId] || createDefaultConfig();
 
-        if (isGlobal && !isPaletteChange) {
-            globalConfig = JSON.parse(JSON.stringify(cfg));
-            delete globalConfig.__isCustomized;
+        currentCfg.text = document.getElementById('edit-text').value;
+        currentCfg.flip = document.getElementById('edit-flip').checked;
+        currentCfg.textColor = document.getElementById('edit-color-text').value;
+        currentCfg.size = parseInt(document.getElementById('edit-size').value);
+        currentCfg.posX = parseInt(document.getElementById('edit-posx').value);
+        currentCfg.posY = parseInt(document.getElementById('edit-posy').value);
+        currentCfg.fontKey = activeFontKey;
+        currentCfg.__isIndividual = !isGlobal;
+
+        if (isGlobal) {
+            globalConfig.text = currentCfg.text;
+            globalConfig.flip = currentCfg.flip;
+            globalConfig.textColor = currentCfg.textColor;
+            globalConfig.size = currentCfg.size;
+            globalConfig.posX = currentCfg.posX;
+            globalConfig.posY = currentCfg.posY;
+            globalConfig.fontKey = currentCfg.fontKey;
+
             selectedStickersIDs.forEach(id => {
-                stickerConfigs[id] = JSON.parse(JSON.stringify(globalConfig));
+                if (!stickerConfigs[id]) stickerConfigs[id] = createDefaultConfig();
+                if (!stickerConfigs[id].__isIndividual) {
+                    stickerConfigs[id].text = globalConfig.text;
+                    stickerConfigs[id].flip = globalConfig.flip;
+                    stickerConfigs[id].textColor = globalConfig.textColor;
+                    stickerConfigs[id].size = globalConfig.size;
+                    stickerConfigs[id].posX = globalConfig.posX;
+                    stickerConfigs[id].posY = globalConfig.posY;
+                    stickerConfigs[id].fontKey = globalConfig.fontKey;
+                }
             });
         } else {
-            stickerConfigs[activeEditorId] = cfg;
+            stickerConfigs[activeEditorId] = currentCfg;
         }
 
         renderEditorTabs();
@@ -924,18 +952,65 @@
         saveHistoryState();
     }
 
-    // Сброс настроек текущего стикера до глобальных или оригинальных
+    // Явное изменение палитры пользователем (цвет фигуры / цвет обводки / толщина обводки)
+    function onPaletteInput(field) {
+        if (isPerformingUndoRedo || !activeEditorId) return;
+
+        let isGlobal = document.getElementById('apply-to-all').checked;
+        let currentCfg = stickerConfigs[activeEditorId] || createDefaultConfig();
+
+        if (field === 'shape') currentCfg.shapeColor = document.getElementById('edit-color-shape').value;
+        if (field === 'stroke') currentCfg.strokeColor = document.getElementById('edit-color-stroke').value;
+        if (field === 'strokeSize') currentCfg.strokeSize = parseInt(document.getElementById('edit-strokesize').value);
+
+        if (isGlobal) {
+            if (field === 'shape') globalConfig.shapeColor = currentCfg.shapeColor;
+            if (field === 'stroke') globalConfig.strokeColor = currentCfg.strokeColor;
+            if (field === 'strokeSize') globalConfig.strokeSize = currentCfg.strokeSize;
+
+            selectedStickersIDs.forEach(id => {
+                if (!stickerConfigs[id]) stickerConfigs[id] = createDefaultConfig();
+                if (!stickerConfigs[id].__isIndividual) {
+                    if (field === 'shape') stickerConfigs[id].shapeColor = globalConfig.shapeColor;
+                    if (field === 'stroke') stickerConfigs[id].strokeColor = globalConfig.strokeColor;
+                    if (field === 'strokeSize') stickerConfigs[id].strokeSize = globalConfig.strokeSize;
+                }
+            });
+        } else {
+            currentCfg.__isIndividual = true;
+            stickerConfigs[activeEditorId] = currentCfg;
+        }
+
+        renderEditorTabs();
+        updateEditorPreview();
+        saveHistoryState();
+    }
+
+    // Сброс настроек: возвращает родную палитру и базовые настройки
     function resetCurrentSticker() {
         if (!activeEditorId) return;
-        stickerConfigs[activeEditorId] = JSON.parse(JSON.stringify(globalConfig));
-        delete stickerConfigs[activeEditorId].__isCustomized;
+        let isGlobal = document.getElementById('apply-to-all').checked;
+
+        if (isGlobal) {
+            globalConfig = createDefaultConfig();
+            selectedStickersIDs.forEach(id => {
+                if (!stickerConfigs[id]?.__isIndividual) {
+                    stickerConfigs[id] = createDefaultConfig();
+                }
+            });
+        } else {
+            stickerConfigs[activeEditorId] = createDefaultConfig();
+            stickerConfigs[activeEditorId].__isIndividual = true;
+        }
+
+        activeFontKey = 'Impact';
+        activeCustomFontObj = null;
         loadConfigToUI(activeEditorId);
         renderEditorTabs();
         updateEditorPreview();
-        alert('Настройки стикера сброшены.');
+        saveHistoryState();
     }
 
-    // Управление историей (Undo / Redo)
     function saveHistoryState() {
         if (isPerformingUndoRedo) return;
         let stateSnapshot = {
@@ -975,7 +1050,7 @@
 
     function loadConfigToUI(id) {
         let cfg = stickerConfigs[id] || globalConfig;
-        let isGlobal = !cfg.__isCustomized;
+        let isGlobal = !cfg.__isIndividual;
         
         document.getElementById('apply-to-all').checked = isGlobal;
         document.getElementById('edit-text').value = cfg.text !== undefined ? cfg.text : "name";
@@ -986,7 +1061,7 @@
         document.getElementById('edit-posy').value = cfg.posY !== undefined ? cfg.posY : 25;
         document.getElementById('edit-color-shape').value = cfg.shapeColor || "#ff0000";
         document.getElementById('edit-color-stroke').value = cfg.strokeColor || "#ffffff";
-        document.getElementById('edit-strokesize').value = cfg.strokeSize !== undefined ? cfg.strokeSize : 9;
+        document.getElementById('edit-strokesize').value = cfg.strokeSize !== null && cfg.strokeSize !== undefined ? cfg.strokeSize : 9;
 
         if (cfg.fontKey) {
             activeFontKey = cfg.fontKey;
@@ -1020,27 +1095,20 @@
     async function getActiveFontObject(cfg) {
         if (activeCustomFontObj) return activeCustomFontObj;
         let fKey = cfg.fontKey || activeFontKey;
-        if (loadedFontsCache[fKey]) return loadedFontsCache[fKey];
-        
-        try {
-            let res = await fetch(builtinFonts[fKey] || builtinFonts['Impact']);
-            let buf = await res.arrayBuffer();
-            loadedFontsCache[fKey] = opentype.parse(buf);
-            return loadedFontsCache[fKey];
-        } catch(e) {
-            return null;
-        }
+        let fontObj = await loadFontFile(fKey);
+        if (fontObj) return fontObj;
+        return await loadFontFile('Impact');
     }
 
     async function applyCustomizationToJSON(data, cfg) {
         const text = cfg.text !== undefined ? cfg.text : "name";
         const shouldFlipY = cfg.flip;
-        const textColorLottie = hexToRgb(cfg.textColor || "#ffffff");
+        const customTextColorLottie = cfg.textColor ? hexToRgb(cfg.textColor) : null;
         const shapeColorLottie = cfg.shapeColor ? hexToRgb(cfg.shapeColor) : null;
         const strokeColorLottie = cfg.strokeColor ? hexToRgb(cfg.strokeColor) : null;
         const userScale = (cfg.size || 100) / 100;
         const offsetX = cfg.posX || 0;
-        const offsetY = cfg.posY || 25;
+        const offsetY = cfg.posY !== undefined ? cfg.posY : 25;
         const strokeSize = cfg.strokeSize;
 
         let fontToUse = await getActiveFontObject(cfg);
@@ -1081,13 +1149,16 @@
 
         let candidates = [];
         let allTextContainers = [];
+        let originalLetterColor = null;
 
         function walk(obj) {
             if (Array.isArray(obj)) { obj.forEach(walk); return; }
             if (obj && typeof obj === 'object') {
-                if (obj.ty === 'fl' && obj.nm !== 'km_color' && obj.nm !== 'контур' && obj.c && obj.c.k) {
-                    if (shapeColorLottie && Array.isArray(obj.c.k) && obj.c.k.length >= 3) obj.c.k = shapeColorLottie;
+                // Меняем палитру фигуры ТОЛЬКО если пользователь сам задал shapeColorLottie
+                if (shapeColorLottie && obj.ty === 'fl' && obj.nm !== 'km_color' && obj.nm !== 'контур' && obj.c && obj.c.k) {
+                    if (Array.isArray(obj.c.k) && obj.c.k.length >= 3) obj.c.k = shapeColorLottie;
                 }
+                // Меняем обводку ТОЛЬКО если пользователь сам задал strokeColorLottie / strokeSize
                 if (obj.ty === 'st' && obj.c) {
                     if (strokeColorLottie && obj.c.k) obj.c.k = strokeColorLottie;
                     if (strokeSize !== undefined && strokeSize !== null) obj.w = { a: 0, k: strokeSize };
@@ -1106,6 +1177,10 @@
                         allTextContainers.push(obj);
                         let bx0 = Infinity, by0 = Infinity, bx1 = -Infinity, by1 = -Infinity;
                         letters.forEach(l => {
+                            if (!originalLetterColor) {
+                                const fl = l.it.find(i => i.ty === 'fl' && i.c && Array.isArray(i.c.k));
+                                if (fl) originalLetterColor = [...fl.c.k];
+                            }
                             const sh = l.it.find(i => i.ty === 'sh');
                             if (sh && sh.ks && sh.ks.k) {
                                 let keyFrames = Array.isArray(sh.ks.k) ? sh.ks.k : [sh.ks.k];
@@ -1135,6 +1210,8 @@
             container.it = container.it.filter(i => !(i.nm && i.nm.startsWith('буква')));
         });
 
+        const finalTextColor = customTextColorLottie || originalLetterColor || [1, 1, 1, 1];
+
         if (best) {
             const { obj, bx0, bx1, by0, by1 } = best;
             const boxW = bx1 - bx0 || 1;
@@ -1153,7 +1230,7 @@
                 nm: "новая надпись",
                 it: [
                     ...newShapes,
-                    { ty: "fl", nm: "km_color", c: { a: 0, k: textColorLottie }, o: { a: 0, k: 100 }, r: 1, bm: 0 },
+                    { ty: "fl", nm: "km_color", c: { a: 0, k: finalTextColor }, o: { a: 0, k: 100 }, r: 1, bm: 0 },
                     { ty: "tr", p: { a: 0, k: [0, 0] }, a: { a: 0, k: [0, 0] }, s: { a: 0, k: [100, 100] }, r: { a: 0, k: 0 }, o: { a: 0, k: 100 }, sk: { a: 0, k: 0 }, sa: { a: 0, k: 0 } }
                 ]
             };
@@ -1174,7 +1251,15 @@
         const reader = new FileReader();
         reader.onload = async function(e) {
             try {
-                let json = JSON.parse(e.target.result);
+                let buffer = e.target.result;
+                let jsonStr;
+                try {
+                    jsonStr = pako.inflate(new Uint8Array(buffer), { to: 'string' });
+                } catch(_) {
+                    jsonStr = new TextDecoder().decode(buffer);
+                }
+                JSON.parse(jsonStr);
+
                 let customId = "custom_" + Date.now();
                 let newSticker = {
                     id: customId,
@@ -1184,19 +1269,21 @@
                 };
                 availableStickers.push(newSticker);
                 categories.add("custom");
-                
-                let saved = JSON.parse(localStorage.getItem('km_custom_stickers') || '[]');
-                saved.push(newSticker);
-                localStorage.setItem('km_custom_stickers', JSON.stringify(saved));
+
+                selectedStickersIDs.push(customId);
+                stickerConfigs[customId] = JSON.parse(JSON.stringify(globalConfig));
+                activeEditorId = customId;
 
                 renderCategories();
                 renderStickersGrid();
-                alert('Стикер успешно добавлен!');
+                renderEditorTabs();
+                updateEditorPreview();
+                updateHeaderStatus();
             } catch(err) {
                 alert('Ошибка чтения файла стикера.');
             }
         };
-        reader.readAsText(file);
+        reader.readAsArrayBuffer(file);
     }
 
     function loadCustomFont(event) {
@@ -1207,7 +1294,6 @@
             try {
                 activeCustomFontObj = opentype.parse(e.target.result);
                 renderFontTabs();
-                alert('Свой шрифт успешно загружен и применен!');
                 updateEditorPreview();
             } catch(err) {
                 alert('Ошибка чтения файла шрифта.');
@@ -1242,7 +1328,6 @@
         URL.revokeObjectURL(url);
 
         savePackHistory(selectedStickersIDs);
-        alert('Пак успешно скомпилирован и скачан бесплатно!');
     }
 
     function savePackHistory(stickersArr) {
@@ -1268,7 +1353,7 @@
                         <div style="font-weight:600; font-size:14px;">Пак #${idx+1}</div>
                         <div style="font-size:11px; color:var(--text-secondary); margin-top:2px;">Стикеров: ${p.count} | Дата: ${p.date}</div>
                     </div>
-                    <i class="fa-solid fa-download" style="color: #4ade80;"></i>
+                    <i class="fa-solid fa-pen-to-square" style="color: #4ade80;"></i>
                 </div>
             `;
         });
@@ -1276,8 +1361,8 @@
 
     function reloadPack(index) {
         let packs = JSON.parse(localStorage.getItem('km_packs') || '[]');
-        if (packs[index] && packs[index].ids) {
-            selectedStickersIDs = packs[index].ids;
+        if (packs[index] && packs[index].ids && packs[index].ids.length > 0) {
+            selectedStickersIDs = [...packs[index].ids];
             selectedStickersIDs.forEach(id => {
                 if (!stickerConfigs[id]) stickerConfigs[id] = JSON.parse(JSON.stringify(globalConfig));
             });
