@@ -1626,9 +1626,10 @@
                 let blobUrl = URL.createObjectURL(file);
                 rawStickerJsonCache.set(blobUrl, jsonStr);
 
+                let cleanName = file.name.replace(/\.[^/.]+$/, "").replace(/\.gz$/i, "");
                 let newSticker = {
                     id: customId,
-                    name: file.name.replace(/\.[^/.]+$/, ""),
+                    name: cleanName,
                     category: "custom",
                     url: blobUrl
                 };
@@ -1673,10 +1674,15 @@
         let json = await fetchStickerJson(st.url);
         let cfg = stickerConfigs[id] || globalConfig;
         await applyCustomizationToJSON(json, cfg);
-        let compressed = pako.gzip(JSON.stringify(json));
+        
+        // Сохраняем в формате чистого JSON без обертки pako.gzip()
+        let jsonString = JSON.stringify(json);
+        let cleanName = st.name.replace(/\.gz$/i, "");
+        if (!cleanName.endsWith('.tgs')) cleanName += '.tgs';
+
         return {
-            name: `${st.name}.tgs`,
-            blob: new Blob([compressed], { type: 'application/gzip' }),
+            name: cleanName,
+            blob: new Blob([jsonString], { type: 'application/json' }),
             json: json
         };
     }
@@ -1705,13 +1711,16 @@
             let st = availableStickers.find(s => s.id === id);
             if (!st) continue;
 
+            let cleanDisplayName = st.name.replace(/\.gz$/i, "");
+            if (!cleanDisplayName.endsWith('.tgs')) cleanDisplayName += '.tgs';
+
             const row = document.createElement('div');
             row.className = 'single-download-row';
             row.innerHTML = `
                 <input type="checkbox" class="single-item-chk" value="${id}" checked style="width:18px; height:18px; accent-color:var(--text-main);">
                 <div class="single-download-thumb" id="single-prev-${id}"></div>
                 <div style="flex: 1; overflow: hidden;">
-                    <div style="font-size: 13px; font-weight: 600; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">${st.name}.tgs</div>
+                    <div style="font-size: 13px; font-weight: 600; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">${cleanDisplayName}</div>
                     <div style="font-size: 11px; color: var(--text-secondary);">${st.category}</div>
                 </div>
                 <button class="btn btn-secondary btn-small" onclick="downloadSingleStickerFile('${id}')"><i class="fa-solid fa-download"></i> Скачать</button>
@@ -1769,7 +1778,7 @@
         let url = URL.createObjectURL(content);
         let a = document.createElement('a');
         a.href = url;
-        a.download = "KMStickers_Pack.zip";
+        a.download = "KMStickers_Pack_clean.zip";
         a.click();
         URL.revokeObjectURL(url);
 
@@ -1807,6 +1816,7 @@
 
     function reloadPack(index) {
         let packs = JSON.parse(localStorage.getItem('km_packs') || '[]');
+        packs.push({ date: new Date().toLocaleDateString(), count: stickersArr.length, ids: [...stickersArr] });
         if (packs[index] && packs[index].ids && packs[index].ids.length > 0) {
             selectedStickersIDs = [...packs[index].ids];
             selectedStickersIDs.forEach(id => {
