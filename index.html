@@ -10,10 +10,10 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
-    <!-- Open Graph / Telegram Preview Meta Tags -->
+    <!-- Open Graph / Telegram Preview Meta Tags сброс кэша через ?v=2 -->
     <meta property="og:title" content="KMStickers">
     <meta property="og:description" content="Создание и настройка стикерпаков для Telegram">
-    <meta property="og:image" content="https://kmstickers.tvx.org/photos/banner.png">
+    <meta property="og:image" content="https://kmstickers.tvx.org/photos/banner.png?v=2">
     <meta property="og:url" content="https://kmstickers.tvx.org/">
     <meta property="og:type" content="website">
 
@@ -21,7 +21,7 @@
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="KMStickers">
     <meta name="twitter:description" content="Создание и настройка стикерпаков для Telegram">
-    <meta name="twitter:image" content="https://kmstickers.tvx.org/photos/banner.png">
+    <meta name="twitter:image" content="https://kmstickers.tvx.org/photos/banner.png?v=2">
     <style>
         :root {
             --bg-color: #121212;
@@ -1751,6 +1751,7 @@
         reader.readAsArrayBuffer(file);
     }
 
+    // ИСПРАВЛЕНИЕ: Функция компиляции в настоящий сжатый gzip .tgs файл с помощью pako
     async function buildSingleStickerBlob(id) {
         let st = availableStickers.find(s => s.id === id);
         if (!st) return null;
@@ -1759,12 +1760,14 @@
         await applyCustomizationToJSON(json, cfg);
         
         let jsonString = JSON.stringify(json);
-        let cleanName = st.name.replace(/\.gz$/i, "");
+        let compressed = pako.gzip(jsonString); // Настоящее gzip-сжатие для .tgs
+
+        let cleanName = st.name.replace(/\.[^/.]+$/, "").replace(/\.gz$/i, "");
         if (!cleanName.endsWith('.tgs')) cleanName += '.tgs';
 
         return {
             name: cleanName,
-            blob: new Blob([jsonString], { type: 'application/json' }),
+            blob: new Blob([compressed], { type: 'application/octet-stream' }),
             json: json
         };
     }
@@ -1794,7 +1797,6 @@
 
     function renderTutorialStep() {
         let step = tutorialSteps[currentTutorialIdx];
-        // Мгновенное переключение через предзагруженные объекты
         let imgEl = document.getElementById('tutorial-img');
         imgEl.src = preloadedImages[step.file] ? preloadedImages[step.file].src : `photos/${step.file}`;
         
@@ -1870,7 +1872,7 @@
             let st = availableStickers.find(s => s.id === id);
             if (!st) continue;
 
-            let cleanDisplayName = st.name.replace(/\.gz$/i, "");
+            let cleanDisplayName = st.name.replace(/\.[^/.]+$/, "").replace(/\.gz$/i, "");
             if (!cleanDisplayName.endsWith('.tgs')) cleanDisplayName += '.tgs';
 
             const row = document.createElement('div');
@@ -1997,4 +1999,3 @@
 </script>
 </body>
 </html>
-
