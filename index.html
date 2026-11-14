@@ -1449,15 +1449,14 @@
         }));
         const textW = maxX - minX || 1;
         const textH = maxY - minY || 1;
-        const textCx = minX + textW / 2;
-        const textCy = minY + textH / 2;
 
-        let candidates = [];
-        let allTextContainers = [];
+        // Ищем прекомпозицию 'mylogo' либо аналогичный контейнер с надписью
+        let targetGroup = null;
         let originalLetterColor = null;
+        let bx0 = Infinity, by0 = Infinity, bx1 = -Infinity, by1 = -Infinity;
 
-        function walk(obj) {
-            if (Array.isArray(obj)) { obj.forEach(walk); return; }
+        function scanForTextContainer(obj) {
+            if (Array.isArray(obj)) { obj.forEach(scanForTextContainer); return; }
             if (obj && typeof obj === 'object') {
                 if (shapeColorLottie && obj.ty === 'fl' && obj.nm !== 'km_color' && obj.nm !== 'контур' && obj.c && obj.c.k) {
                     if (Array.isArray(obj.c.k) && obj.c.k.length >= 3) obj.c.k = shapeColorLottie;
@@ -1466,24 +1465,26 @@
                     if (strokeColorLottie && obj.c.k) obj.c.k = strokeColorLottie;
                     if (strokeSize !== undefined && strokeSize !== null) obj.w = { a: 0, k: strokeSize };
                 }
-                if (obj.it && (obj.nm === 'надпись' || obj.nm === 'EMOJI' || obj.nm === 'Rectangle' || obj.nm === 'Logo')) {
+                if (obj.it && (obj.nm === 'надпись' || obj.nm === 'Logo')) {
                     let letters = [];
-                    function findLetters(container) {
+                    function collectLetters(container) {
                         if (!container.it) return;
                         container.it.forEach(item => {
                             if (item.nm && (item.nm.startsWith('буква') || item.nm.startsWith('контур'))) letters.push(item);
-                            if (item.it) findLetters(item);
+                            if (item.it) collectLetters(item);
                         });
                     }
-                    findLetters(obj);
+                    collectLetters(obj);
                     if (letters.length > 0) {
-                        allTextContainers.push(obj);
-                        let bx0 = Infinity, by0 = Infinity, bx1 = -Infinity, by1 = -Infinity;
+                        targetGroup = obj;
                         letters.forEach(l => {
                             if (!originalLetterColor) {
                                 const fl = l.it ? l.it.find(i => i.ty === 'fl' && i.c && Array.isArray(i.c.k)) : null;
                                 if (fl) originalLetterColor = [...fl.c.k];
                             }
+                            // Скрываем старые буквы оригинального логотипа, чтобы они не накладывались
+                            l.hd = true;
+                            
                             const sh = l.it ? l.it.find(i => i.ty === 'sh') : (l.ty === 'sh' ? l : null);
                             if (sh && sh.ks && sh.ks.k) {
                                 let keyFrames = Array.isArray(sh.ks.k) ? sh.ks.k : [sh.ks.k];
@@ -1491,90 +1492,88 @@
                                     let points = kf.v || (kf.s && kf.s[0] && kf.s[0].v);
                                     if (points) {
                                         points.forEach(p => {
-                                            if(p[0]<bx0) bx0=p[0]; if(p[0]>maxX) bx1=Math.max(bx1, p[0]);
-                                            if(p[1]<by0) by0=p[1]; if(p[1]>by1) by1=Math.max(by1, p[1]);
+                                            if(p[0]<bx0) bx0=p[0]; if(p[0]>bx1) bx1=p[0];
+                                            if(p[1]<by0) by0=by1=p[1]; // сохраняем габариты
+                                            if(p[1]<by0) by0=p[1]; if(p[1]>by1) by1=p[1];
                                         });
                                     }
                                 });
                             }
                         });
-                        if (bx0 !== Infinity && bx1 !== -Infinity) {
-                            candidates.push({ obj, bx0, bx1, by0, by1, dist: Math.hypot((bx0+bx1)/2 - 256, (by0+by1)/2 - 256) });
-                        }
                     }
                 }
-                for (let key in obj) walk(obj[key]);
+                for (let key in obj) scanForTextContainer(obj[key]);
             }
         }
-        walk(data);
 
-        // Если не нашли через иерархию надписи, ищем прямо корневые слои с контурами
-        if (candidates.length === 0 && data.layers) {
-            data.layers.forEach(layer => {
-                if (layer.shapes) {
-                    layer.shapes.forEach(shape => {
-                        walk(shape);
-                    });
+        // Проходим по assets и layers
+        if (data.assets) data.assets.forEach(asset => scanForTextContainer(asset));
+        if (data.layers) data.layers.forEach(layer => scanForTextContainer(layer));
+
+        if (!targetGroup) {
+            // Фолбэк: если конкретный контейнер не найден, берем первый попавшийся с контурами
+            let fallbackCandidates = [];
+            function scanFallback(obj) {
+                if (Array.isArray(obj)) { obj.forEach(scanFallback); return; }
+                if (obj && typeof obj === 'object') {
+                    if (obj.it && obj.it.some(i => i.ty === 'sh')) fallbackCandidates.push(obj);
+                    for (let key in obj) scanFallback(obj[key]);
                 }
-            });
+            }
+            if (data.assets) data.assets.forEach(asset => scanFallback(asset));
+            if (data.layers) data.layers.forEach(layer => scanFallback(layer));
+            if (fallbackCandidates.length > 0) targetGroup = fallbackCandidates[0];
         }
 
-        let best = candidates.reduce((a, b) => (!a || b.dist < a.dist) ? b : a, null);
-        
-        // Очищаем старые буквы
-        allTextContainers.forEach(container => {
-            if (container.it) {
-                container.it = container.it.filter(i => !(i.nm && (i.nm.startsWith('буква') || i.nm.startsWith('контур'))));
-            }
+        if (bx0 === Infinity || bx1 === -Infinity) {
+            bx0 = 30; bx1 = 480; by0 = 220; by1 = 290;
+        }
+
+        const boxW = bx1 - bx0 || 200;
+        const boxH = by1 - by0 || 50;
+        const boxCx = (bx0 + bx1) / 2 + offsetX;
+        const boxCy = (by0 + by1) / 2 + offsetY;
+        const scale = Math.min(boxW / textW, boxH / textH) * 0.85 * userScale;
+
+        const newShapes = contours.map(c => {
+            const baseV = c.points.map(p => [
+                ((p[0] - (minX + textW / 2)) * scale) + boxCx,
+                ((p[1] - (minY + textH / 2)) * scale) + boxCy
+            ]);
+            return {
+                ty: "sh",
+                nm: "контур",
+                ks: { a: 0, k: { c: c.closed, v: baseV, i: baseV.map(() => [0,0]), o: baseV.map(() => [0,0]) } }
+            };
         });
 
-        const finalTextColor = customTextColorLottie || originalLetterColor || [1, 1, 1, 1];
+        const shapeItems = [...newShapes];
 
-        if (best) {
-            const { obj, bx0, bx1, by0, by1 } = best;
-            const boxW = bx1 - bx0 || 200;
-            const boxH = by1 - by0 || 50;
-            const boxCx = (bx0 + bx1) / 2 + offsetX;
-            const boxCy = (by0 + by1) / 2 + offsetY;
-            const scale = Math.min(boxW / textW, boxH / textH) * 0.85 * userScale;
-
-            const newShapes = contours.map(c => {
-                const v = c.points.map(p => [ ((p[0] - textCx) * scale) + boxCx, ((p[1] - textCy) * scale) + boxCy ]);
-                return { ty: "sh", nm: "контур", ks: { a: 0, k: { c: c.closed, v: v, i: v.map(() => [0,0]), o: v.map(() => [0,0]) } } };
+        if (textStrokeSize > 0) {
+            shapeItems.push({
+                ty: "st",
+                nm: "km_text_stroke",
+                c: { a: 0, k: textStrokeColorLottie },
+                o: { a: 0, k: 100 },
+                w: { a: 0, k: textStrokeSize },
+                lc: 2, lj: 2, ml: 4, bm: 0
             });
+        }
 
-            const shapeItems = [...newShapes];
+        const finalTextColor = customTextColorLottie || originalLetterColor || [1, 1, 1, 1];
+        shapeItems.push(
+            { ty: "fl", nm: "km_color", c: { a: 0, k: finalTextColor }, o: { a: 0, k: 100 }, r: 1, bm: 0 },
+            { ty: "tr", p: { a: 0, k: [0, 0] }, a: { a: 0, k: [0, 0] }, s: { a: 0, k: [100, 100] }, r: { a: 0, k: 0 }, o: { a: 0, k: 100 }, sk: { a: 0, k: 0 }, sa: { a: 0, k: 0 } }
+        );
 
-            if (textStrokeSize > 0) {
-                shapeItems.push({
-                    ty: "st",
-                    nm: "km_text_stroke",
-                    c: { a: 0, k: textStrokeColorLottie },
-                    o: { a: 0, k: 100 },
-                    w: { a: 0, k: textStrokeSize },
-                    lc: 2,
-                    lj: 2,
-                    ml: 4,
-                    bm: 0
-                });
-            }
+        const unifiedWordShape = {
+            ty: "gr",
+            nm: "новая надпись",
+            it: shapeItems
+        };
 
-            shapeItems.push(
-                { ty: "fl", nm: "km_color", c: { a: 0, k: finalTextColor }, o: { a: 0, k: 100 }, r: 1, bm: 0 },
-                { ty: "tr", p: { a: 0, k: [0, 0] }, a: { a: 0, k: [0, 0] }, s: { a: 0, k: [100, 100] }, r: { a: 0, k: 0 }, o: { a: 0, k: 100 }, sk: { a: 0, k: 0 }, sa: { a: 0, k: 0 } }
-            );
-
-            const unifiedWordShape = {
-                ty: "gr",
-                nm: "новая надпись",
-                it: shapeItems
-            };
-            
-            if (obj.it) {
-                obj.it.unshift(unifiedWordShape);
-            } else if (obj.shapes) {
-                obj.shapes.unshift(unifiedWordShape);
-            }
+        if (targetGroup && targetGroup.it) {
+            targetGroup.it.unshift(unifiedWordShape);
         }
     }
 
@@ -1642,7 +1641,7 @@
                 alert('Ошибка чтения файла шрифта.');
             }
         };
-        reader.readAsArrayBuffer(file);
+        reader.readAsArrayBuffer(e.target.result);
     }
 
     async function buildSingleStickerBlob(id) {
