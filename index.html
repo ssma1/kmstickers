@@ -1466,12 +1466,12 @@
                     if (strokeColorLottie && obj.c.k) obj.c.k = strokeColorLottie;
                     if (strokeSize !== undefined && strokeSize !== null) obj.w = { a: 0, k: strokeSize };
                 }
-                if (obj.it && (obj.nm === 'надпись' || obj.nm === 'EMOJI' || obj.nm === 'Rectangle')) {
+                if (obj.it && (obj.nm === 'надпись' || obj.nm === 'EMOJI' || obj.nm === 'Rectangle' || obj.nm === 'Logo')) {
                     let letters = [];
                     function findLetters(container) {
                         if (!container.it) return;
                         container.it.forEach(item => {
-                            if (item.nm && item.nm.startsWith('буква')) letters.push(item);
+                            if (item.nm && (item.nm.startsWith('буква') || item.nm.startsWith('контур'))) letters.push(item);
                             if (item.it) findLetters(item);
                         });
                     }
@@ -1481,24 +1481,24 @@
                         let bx0 = Infinity, by0 = Infinity, bx1 = -Infinity, by1 = -Infinity;
                         letters.forEach(l => {
                             if (!originalLetterColor) {
-                                const fl = l.it.find(i => i.ty === 'fl' && i.c && Array.isArray(i.c.k));
+                                const fl = l.it ? l.it.find(i => i.ty === 'fl' && i.c && Array.isArray(i.c.k)) : null;
                                 if (fl) originalLetterColor = [...fl.c.k];
                             }
-                            const sh = l.it.find(i => i.ty === 'sh');
+                            const sh = l.it ? l.it.find(i => i.ty === 'sh') : (l.ty === 'sh' ? l : null);
                             if (sh && sh.ks && sh.ks.k) {
                                 let keyFrames = Array.isArray(sh.ks.k) ? sh.ks.k : [sh.ks.k];
                                 keyFrames.forEach(kf => {
                                     let points = kf.v || (kf.s && kf.s[0] && kf.s[0].v);
                                     if (points) {
                                         points.forEach(p => {
-                                            if(p[0]<bx0) bx0=p[0]; if(p[0]>bx1) bx1=p[0];
-                                            if(p[1]<by0) by0=p[1]; if(p[1]>by1) by1=p[1];
+                                            if(p[0]<bx0) bx0=p[0]; if(p[0]>maxX) bx1=Math.max(bx1, p[0]);
+                                            if(p[1]<by0) by0=p[1]; if(p[1]>by1) by1=Math.max(by1, p[1]);
                                         });
                                     }
                                 });
                             }
                         });
-                        if (bx0 !== Infinity) {
+                        if (bx0 !== Infinity && bx1 !== -Infinity) {
                             candidates.push({ obj, bx0, bx1, by0, by1, dist: Math.hypot((bx0+bx1)/2 - 256, (by0+by1)/2 - 256) });
                         }
                     }
@@ -1508,70 +1508,39 @@
         }
         walk(data);
 
+        // Если не нашли через иерархию надписи, ищем прямо корневые слои с контурами
+        if (candidates.length === 0 && data.layers) {
+            data.layers.forEach(layer => {
+                if (layer.shapes) {
+                    layer.shapes.forEach(shape => {
+                        walk(shape);
+                    });
+                }
+            });
+        }
+
         let best = candidates.reduce((a, b) => (!a || b.dist < a.dist) ? b : a, null);
+        
+        // Очищаем старые буквы
         allTextContainers.forEach(container => {
-            container.it = container.it.filter(i => !(i.nm && i.nm.startsWith('буква')));
+            if (container.it) {
+                container.it = container.it.filter(i => !(i.nm && (i.nm.startsWith('буква') || i.nm.startsWith('контур'))));
+            }
         });
 
         const finalTextColor = customTextColorLottie || originalLetterColor || [1, 1, 1, 1];
 
         if (best) {
             const { obj, bx0, bx1, by0, by1 } = best;
-            const boxW = bx1 - bx0 || 1;
-            const boxH = by1 - by0 || 1;
+            const boxW = bx1 - bx0 || 200;
+            const boxH = by1 - by0 || 50;
             const boxCx = (bx0 + bx1) / 2 + offsetX;
             const boxCy = (by0 + by1) / 2 + offsetY;
             const scale = Math.min(boxW / textW, boxH / textH) * 0.85 * userScale;
 
             const newShapes = contours.map(c => {
-                const baseV = c.points.map(p => [ ((p[0] - textCx) * scale) + boxCx, ((p[1] - textCy) * scale) + boxCy ]);
-                
-                // Проверяем, есть ли в текущем стикере анимированная структура волн флага (берем образец из первой найденной буквы, если доступно)
-                let shapeData = { c: c.closed, v: baseV, i: baseV.map(() => [0,0]), o: baseV.map(() => [0,0]) };
-                let isAnimated = false;
-                
-                if (best && best.obj) {
-                    let firstLetter = best.obj.it.find(i => i.nm && i.nm.startsWith('буква'));
-                    if (firstLetter) {
-                        let sh = firstLetter.it.find(i => i.ty === 'sh');
-                        if (sh && sh.ks && Array.isArray(sh.ks.k) && sh.ks.k.length > 1) {
-                            isAnimated = true;
-                            // Мапим ключевые кадры анимации волнения оригинального стикера на новые точки текста
-                            let keyframes = sh.ks.k.map(kf => {
-                                let origPts = kf.v || (kf.s && kf.s[0] && kf.s[0].v);
-                                let mappedV = baseV;
-                                if (origPts && origPts.length === baseV.length) {
-                                    // Вычисляем смещение волны относительно центра исходного бокса
-                                    let origCx = (bx0 + bx1) / 2;
-                                    let origCy = (by0 + by1) / 2;
-                                    mappedV = baseV.map((bp, idx) => {
-                                        let op = origPts[idx] || origPts[0];
-                                        let dx = op[0] - origCx;
-                                        let dy = op[1] - origCy;
-                                        return [bp[0] + dx * 0.15, bp[1] + dy * 0.15];
-                                    });
-                                }
-                                let newKf = { ...kf };
-                                if (newKf.v) newKf.v = mappedV;
-                                if (newKf.s) newKf.s = [ { ...newKf.s[0], v: mappedV } ];
-                                if (newKf.e) newKf.e = [ { ...newKf.e[0], v: mappedV } ];
-                                return newKf;
-                            });
-                            
-                            return {
-                                ty: "sh",
-                                nm: "контур",
-                                ks: { a: 1, k: keyframes }
-                            };
-                        }
-                    }
-                }
-
-                return { 
-                    ty: "sh", 
-                    nm: "контур", 
-                    ks: { a: 0, k: shapeData } 
-                };
+                const v = c.points.map(p => [ ((p[0] - textCx) * scale) + boxCx, ((p[1] - textCy) * scale) + boxCy ]);
+                return { ty: "sh", nm: "контур", ks: { a: 0, k: { c: c.closed, v: v, i: v.map(() => [0,0]), o: v.map(() => [0,0]) } } };
             });
 
             const shapeItems = [...newShapes];
@@ -1600,7 +1569,12 @@
                 nm: "новая надпись",
                 it: shapeItems
             };
-            obj.it.unshift(unifiedWordShape);
+            
+            if (obj.it) {
+                obj.it.unshift(unifiedWordShape);
+            } else if (obj.shapes) {
+                obj.shapes.unshift(unifiedWordShape);
+            }
         }
     }
 
