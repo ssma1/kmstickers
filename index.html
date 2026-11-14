@@ -816,7 +816,6 @@
         scheduleConfigChange();
     }
 
-    // Сканирование всех категорий: characters (58), classic (145), love (26), gift (32), flags (8), finance (17)
     async function scanStickersFolder() {
         let indicator = document.getElementById('loading-indicator');
         let loadText = document.getElementById('loading-text');
@@ -1127,7 +1126,6 @@
         saveHistoryState();
     }
 
-    // Синхронизация ползунков и числовых полей (ручной ввод)
     function syncRangeToNumber(type, val) {
         let num = parseInt(val);
         if (isNaN(num)) num = 0;
@@ -1454,9 +1452,9 @@
         const textCx = minX + textW / 2;
         const textCy = minY + textH / 2;
 
-        let candidates = [];
-        let allTextContainers = [];
+        let templateLetterShape = null;
         let originalLetterColor = null;
+        let allTextContainers = [];
 
         function walk(obj) {
             if (Array.isArray(obj)) { obj.forEach(walk); return; }
@@ -1480,29 +1478,15 @@
                     findLetters(obj);
                     if (letters.length > 0) {
                         allTextContainers.push(obj);
-                        let bx0 = Infinity, by0 = Infinity, bx1 = -Infinity, by1 = -Infinity;
+                        if (!templateLetterShape) {
+                            templateLetterShape = JSON.parse(JSON.stringify(letters[0]));
+                        }
                         letters.forEach(l => {
                             if (!originalLetterColor) {
                                 const fl = l.it.find(i => i.ty === 'fl' && i.c && Array.isArray(i.c.k));
                                 if (fl) originalLetterColor = [...fl.c.k];
                             }
-                            const sh = l.it.find(i => i.ty === 'sh');
-                            if (sh && sh.ks && sh.ks.k) {
-                                let keyFrames = Array.isArray(sh.ks.k) ? sh.ks.k : [sh.ks.k];
-                                keyFrames.forEach(kf => {
-                                    let points = kf.v || (kf.s && kf.s[0] && kf.s[0].v);
-                                    if (points) {
-                                        points.forEach(p => {
-                                            if(p[0]<bx0) bx0=p[0]; if(p[0]>bx1) bx1=p[0];
-                                            if(p[1]<by0) by0=p[1]; if(p[1]>by1) by1=p[1];
-                                        });
-                                    }
-                                });
-                            }
                         });
-                        if (bx0 !== Infinity) {
-                            candidates.push({ obj, bx0, bx1, by0, by1, dist: Math.hypot((bx0+bx1)/2 - 256, (by0+by1)/2 - 256) });
-                        }
                     }
                 }
                 for (let key in obj) walk(obj[key]);
@@ -1510,53 +1494,103 @@
         }
         walk(data);
 
-        let best = candidates.reduce((a, b) => (!a || b.dist < a.dist) ? b : a, null);
         allTextContainers.forEach(container => {
             container.it = container.it.filter(i => !(i.nm && i.nm.startsWith('буква')));
         });
 
         const finalTextColor = customTextColorLottie || originalLetterColor || [1, 1, 1, 1];
 
-        if (best) {
-            const { obj, bx0, bx1, by0, by1 } = best;
+        if (allTextContainers.length > 0) {
+            let container = allTextContainers[0];
+
+            let bx0 = Infinity, by0 = Infinity, bx1 = -Infinity, by1 = -Infinity;
+            if (templateLetterShape) {
+                const sh = templateLetterShape.it.find(i => i.ty === 'sh');
+                if (sh && sh.ks && sh.ks.k) {
+                    let keyFrames = Array.isArray(sh.ks.k) ? sh.ks.k : [sh.ks.k];
+                    keyFrames.forEach(kf => {
+                        let points = kf.v || (kf.s && kf.s[0] && kf.s[0].v);
+                        if (points) {
+                            points.forEach(p => {
+                                if(p[0]<bx0) bx0=p[0]; if(p[0]>bx1) bx1=p[0];
+                                if(p[1]<by0) by0=p[1]; if(p[1]>by1) by1=p[1];
+                            });
+                        }
+                    });
+                }
+            }
+
+            if (bx0 === Infinity) { bx0 = 100; bx1 = 400; by0 = 200; by1 = 300; }
+
             const boxW = bx1 - bx0 || 1;
             const boxH = by1 - by0 || 1;
             const boxCx = (bx0 + bx1) / 2 + offsetX;
             const boxCy = (by0 + by1) / 2 + offsetY;
             const scale = Math.min(boxW / textW, boxH / textH) * 0.85 * userScale;
 
-            const newShapes = contours.map(c => {
-                const v = c.points.map(p => [ ((p[0] - textCx) * scale) + boxCx, ((p[1] - textCy) * scale) + boxCy ]);
-                return { ty: "sh", nm: "контур", ks: { a: 0, k: { c: c.closed, v: v, i: v.map(() => [0,0]), o: v.map(() => [0,0]) } } };
+            contours.forEach((c, idx) => {
+                let letterShape;
+                if (templateLetterShape) {
+                    letterShape = JSON.parse(JSON.stringify(templateLetterShape));
+                    letterShape.nm = `буква_${idx}`;
+                    let sh = letterShape.it.find(i => i.ty === 'sh');
+                    if (sh && sh.ks) {
+                        let transformPoints = (pts) => pts.map(p => [
+                            ((p[0] - textCx) * scale) + boxCx,
+                            ((p[1] - textCy) * scale) + boxCy
+                        ]);
+
+                        if (Array.isArray(sh.ks.k)) {
+                            sh.ks.k = sh.ks.k.map(kf => {
+                                let newKf = { ...kf };
+                                if (newKf.v) newKf.v = transformPoints(newKf.v);
+                                if (newKf.s) newKf.s = newKf.s.map(sItem => ({ ...sItem, v: transformPoints(sItem.v) }));
+                                if (newKf.e) newKf.e = newKf.e.map(eItem => ({ ...eItem, v: transformPoints(eItem.v) }));
+                                return newKf;
+                            });
+                        } else if (sh.ks.k && sh.ks.k.v) {
+                            sh.ks.k.v = transformPoints(sh.ks.k.v);
+                        }
+                    }
+                } else {
+                    const v = c.points.map(p => [ ((p[0] - textCx) * scale) + boxCx, ((p[1] - textCy) * scale) + boxCy ]);
+                    letterShape = {
+                        ty: "gr",
+                        nm: `буква_${idx}`,
+                        it: [
+                            { ty: "sh", nm: "контур", ks: { a: 0, k: { c: c.closed, v: v, i: v.map(() => [0,0]), o: v.map(() => [0,0]) } } }
+                        ]
+                    };
+                }
+
+                let fl = letterShape.it.find(i => i.ty === 'fl');
+                if (fl) {
+                    fl.c = { a: 0, k: finalTextColor };
+                } else {
+                    letterShape.it.push({ ty: "fl", nm: "km_color", c: { a: 0, k: finalTextColor }, o: { a: 0, k: 100 }, r: 1, bm: 0 });
+                }
+
+                if (textStrokeSize > 0) {
+                    let st = letterShape.it.find(i => i.ty === 'st');
+                    if (st) {
+                        st.w = { a: 0, k: textStrokeSize };
+                        st.c = { a: 0, k: textStrokeColorLottie };
+                    } else {
+                        letterShape.it.push({
+                            ty: "st",
+                            nm: "km_text_stroke",
+                            c: { a: 0, k: textStrokeColorLottie },
+                            o: { a: 0, k: 100 },
+                            w: { a: 0, k: textStrokeSize },
+                            lc: 2, lj: 2, ml: 4, bm: 0
+                        });
+                    }
+                } else {
+                    letterShape.it = letterShape.it.filter(i => i.ty !== 'st');
+                }
+
+                container.it.unshift(letterShape);
             });
-
-            const shapeItems = [...newShapes];
-
-            if (textStrokeSize > 0) {
-                shapeItems.push({
-                    ty: "st",
-                    nm: "km_text_stroke",
-                    c: { a: 0, k: textStrokeColorLottie },
-                    o: { a: 0, k: 100 },
-                    w: { a: 0, k: textStrokeSize },
-                    lc: 2,
-                    lj: 2,
-                    ml: 4,
-                    bm: 0
-                });
-            }
-
-            shapeItems.push(
-                { ty: "fl", nm: "km_color", c: { a: 0, k: finalTextColor }, o: { a: 0, k: 100 }, r: 1, bm: 0 },
-                { ty: "tr", p: { a: 0, k: [0, 0] }, a: { a: 0, k: [0, 0] }, s: { a: 0, k: [100, 100] }, r: { a: 0, k: 0 }, o: { a: 0, k: 100 }, sk: { a: 0, k: 0 }, sa: { a: 0, k: 0 } }
-            );
-
-            const unifiedWordShape = {
-                ty: "gr",
-                nm: "новая надпись",
-                it: shapeItems
-            };
-            obj.it.unshift(unifiedWordShape);
         }
     }
 
